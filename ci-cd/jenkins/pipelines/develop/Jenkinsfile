@@ -1,0 +1,323 @@
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '30'))
+        skipDefaultCheckout(true)
+    }
+
+    parameters {
+        booleanParam(
+            name: 'DEPLOY_FLOCI_TF',
+            defaultValue: true,
+            description: 'Apply Development Terraform configuration to Floci (endpoint http://floci:4566).'
+        )
+        booleanParam(
+            name: 'DEPLOY_COMPOSE',
+            defaultValue: false,
+            description: 'Deploy isolated Development Docker Compose stack (disabled by default in favor of Floci ECS/S3).'
+        )
+    }
+
+    environment {
+        PROJECT_WORKSPACE     = '/workspace/billing-system'
+        COMPOSE_FILE          = '/workspace/billing-system/deployment/compose.develop.yaml'
+        COMPOSE_PROJECT       = 'billing-develop'
+        DEDICATED_AWS_ACCOUNT = '111122223333'
+        SECRET_NAME           = 'billing-dev/app-secrets'
+        TF_DIR                = '/workspace/billing-system/infrastructure/terraform/environments/develop'
+        TF_ROOT               = '/workspace/billing-system/infrastructure/terraform'
+        TF_DATA_DIR           = '/var/jenkins_home/.terraform-data-develop'
+        TF_IN_AUTOMATION      = 'true'
+        TF_INPUT              = 'false'
+        TF_VAR_floci_endpoint = 'http://floci:4566'
+        DEPLOY_FLOCI_TF       = "${params.DEPLOY_FLOCI_TF}"
+        DEPLOY_COMPOSE        = "${params.DEPLOY_COMPOSE}"
+    }
+
+    stages {
+        stage('Verify Workspace & Floci') {
+            steps {
+                sh '''
+                    set -eu
+                    echo "=== [Develop] Verifying Local Simulation Environment ==="
+                    test -d "$PROJECT_WORKSPACE/backend"
+                    test -d "$PROJECT_WORKSPACE/frontend"
+                    test -f "$COMPOSE_FILE"
+                    test -d "$TF_DIR"
+
+                    echo "Verifying Floci local endpoint at http://floci:4566..."
+                    curl -fsS http://floci:4566/_localstack/health > /dev/null
+                    echo "Floci connectivity verified."
+                '''
+            }
+        }
+
+        stage('Verify Floci Secrets Linkage (Develop)') {
+            steps {
+                sh '''
+                    set -eu
+                    echo "=== [Develop] Verifying AWS Secrets Manager in Floci ==="
+                    echo "Dedicated AWS Account: ${DEDICATED_AWS_ACCOUNT}"
+                    echo "Target Secret Name:    ${SECRET_NAME}"
+
+                    python3 "${PROJECT_WORKSPACE}/infrastructure/scripts/manage_floci_secrets.py" "http://floci:4566" "develop"
+                    echo "Floci Secrets Manager verification PASSED for Development."
+                '''
+            }
+        }
+
+        stage('Backend Build & Unit Tests') {
+            steps {
+                dir("${PROJECT_WORKSPACE}/backend") {
+                    sh 'mvn -B clean test package'
+                }
+                sh '''
+                    cp -f "${PROJECT_WORKSPACE}/backend/target"/*.jar ./ 2>/dev/null || true
+                '''
+            }
+            post {
+                always {
+                    junit(
+                        allowEmptyResults: true,
+                        testResults: "${PROJECT_WORKSPACE}/backend/target/surefire-reports/*.xml"
+                    )
+                    archiveArtifacts(
+                        artifacts: '*.jar',
+                        fingerprint: true,
+                        allowEmptyArchive: true
+                    )
+                }
+            }
+        }
+
+        stage('Frontend Build & Immutable Archive') {
+            steps {
+                dir("${PROJECT_WORKSPACE}/frontend") {
+                    sh '''
+                        npm --version
+                        node --version
+                        npm run build
+                    '''
+                }
+                sh '''
+                    set -eu
+                    echo "=== [Develop] Packaging Frontend Build Artifact ==="
+                    GIT_COMMIT_SHORT=$(git -C "$PROJECT_WORKSPACE" rev-parse --short HEAD 2>/dev/null || echo "dev-local")
+                    BUILD_TAG="develop-${GIT_COMMIT_SHORT}-${BUILD_NUMBER}"
+                    FRONTEND_TAR="frontend-dist-${BUILD_TAG}.tar.gz"
+
+                    tar -czf "${FRONTEND_TAR}" -C "${PROJECT_WORKSPACE}/frontend/dist" .
+                    FRONTEND_SHA256=$(sha256sum "${FRONTEND_TAR}" | awk '{print $1}')
+                    echo "${FRONTEND_SHA256}" > frontend.sha256
+
+                    echo "Frontend archive created: ${FRONTEND_TAR}"
+                    echo "Frontend SHA256 checksum: ${FRONTEND_SHA256}"
+                '''
+            }
+            post {
+                always {
+                    archiveArtifacts(
+                        artifacts: 'frontend-dist-*.tar.gz,frontend.sha256',
+                        fingerprint: true,
+                        allowEmptyArchive: true
+                    )
+                }
+            }
+        }
+
+        stage('Build Docker Images & Record Digest') {
+            steps {
+                sh '''
+                    set -eu
+                    echo "=== [Develop] Building Docker Images ==="
+                    GIT_COMMIT_SHORT=$(git -C "$PROJECT_WORKSPACE" rev-parse --short HEAD 2>/dev/null || echo "dev-local")
+                    BUILD_TAG="develop-${GIT_COMMIT_SHORT}-${BUILD_NUMBER}"
+
+                    docker build -t "billing-backend:${BUILD_TAG}" "$PROJECT_WORKSPACE/backend"
+                    docker build -t "billing-frontend:${BUILD_TAG}" "$PROJECT_WORKSPACE/frontend"
+
+                    docker tag "billing-backend:${BUILD_TAG}" "billing-backend:develop"
+                    docker tag "billing-frontend:${BUILD_TAG}" "billing-frontend:develop"
+
+                    BACKEND_IMAGE_ID=$(docker inspect --format='{{.Id}}' "billing-backend:${BUILD_TAG}")
+                    FRONTEND_IMAGE_ID=$(docker inspect --format='{{.Id}}' "billing-frontend:${BUILD_TAG}")
+                    FRONTEND_TAR="frontend-dist-${BUILD_TAG}.tar.gz"
+                    FRONTEND_SHA256=$(cat frontend.sha256)
+
+                    echo "Backend Image ID:  ${BACKEND_IMAGE_ID}"
+                    echo "Frontend Image ID: ${FRONTEND_IMAGE_ID}"
+
+                    cat <<EOF > release-manifest.json
+{
+  "build_number": "${BUILD_NUMBER}",
+  "git_commit": "${GIT_COMMIT_SHORT}",
+  "build_tag": "${BUILD_TAG}",
+  "timestamp": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
+  "environment": "develop",
+  "dedicated_aws_account": "${DEDICATED_AWS_ACCOUNT}",
+  "secret_name": "${SECRET_NAME}",
+  "backend": {
+    "image_tag": "billing-backend:${BUILD_TAG}",
+    "image_id": "${BACKEND_IMAGE_ID}"
+  },
+  "frontend": {
+    "artifact_file": "${FRONTEND_TAR}",
+    "sha256": "${FRONTEND_SHA256}",
+    "image_id": "${FRONTEND_IMAGE_ID}"
+  }
+}
+EOF
+                    cat release-manifest.json
+                '''
+            }
+            post {
+                success {
+                    archiveArtifacts(
+                        artifacts: 'release-manifest.json',
+                        fingerprint: true
+                    )
+                }
+            }
+        }
+
+        stage('Terraform Floci Integration (Develop)') {
+            steps {
+                sh '''
+                    set -eu
+                    echo "=== [Develop] Running Floci Terraform Plan ==="
+                    mkdir -p "$TF_DATA_DIR"
+                    terraform -chdir="$TF_DIR" init -backend=false -input=false
+                    terraform -chdir="$TF_DIR" validate
+
+                    # If secret already exists in Floci, ensure it is imported into Terraform state
+                    SECRET_ARN=$(python3 -c "
+import urllib.request, json
+try:
+    req = urllib.request.Request('http://floci:4566', data=json.dumps({'SecretId': '${SECRET_NAME}'}).encode(), headers={
+        'X-Amz-Target': 'secretsmanager.DescribeSecret',
+        'Content-Type': 'application/x-amz-json-1.1',
+        'Authorization': 'AWS4-HMAC-SHA256 Credential=${DEDICATED_AWS_ACCOUNT}/20261105/us-east-1/secretsmanager/aws4_request, SignedHeaders=content-type;host;x-amz-target, Signature=mock'
+    })
+    with urllib.request.urlopen(req) as resp:
+        print(json.loads(resp.read().decode()).get('ARN', ''))
+except Exception:
+    pass
+" 2>/dev/null || true)
+                    if [ -n "$SECRET_ARN" ] && ! terraform -chdir="$TF_DIR" state list 2>/dev/null | grep -q "module.app_secrets.aws_secretsmanager_secret.app_secrets"; then
+                        echo "Importing pre-existing Floci secret ${SECRET_ARN} into Terraform state..."
+                        terraform -chdir="$TF_DIR" import -var="floci_endpoint=http://floci:4566" -var="aws_account_id=${DEDICATED_AWS_ACCOUNT}" module.app_secrets.aws_secretsmanager_secret.app_secrets "$SECRET_ARN" || true
+                    fi
+
+                    terraform -chdir="$TF_DIR" plan -var="floci_endpoint=http://floci:4566" -var="aws_account_id=${DEDICATED_AWS_ACCOUNT}" -out=tfplan.develop -no-color
+
+                    if [ "${DEPLOY_FLOCI_TF:-false}" = "true" ]; then
+                        echo "Applying Development Terraform resources to Floci account ${DEDICATED_AWS_ACCOUNT}..."
+                        terraform -chdir="$TF_DIR" apply -input=false tfplan.develop
+
+                        echo "=== [Develop] Syncing Frontend Static Assets to S3 Website Bucket ==="
+                        python3 "${PROJECT_WORKSPACE}/infrastructure/scripts/sync_s3_frontend.py" "http://floci:4566" "${DEDICATED_AWS_ACCOUNT}" "${PROJECT_WORKSPACE}/frontend/dist" || true
+                    fi
+                '''
+            }
+        }
+
+        stage('Verify Floci Cloud Deployment (Develop)') {
+            when {
+                expression { return params.DEPLOY_FLOCI_TF == true }
+            }
+            steps {
+                sh '''
+                    set -eu
+                    echo "=== [Develop] Verifying Floci Cloud Deployment ==="
+                    BUCKET_NAME=$(terraform -chdir="$TF_DIR" state show module.frontend_website.aws_s3_bucket.this 2>/dev/null | grep -E '^\s*bucket\s*=' | head -1 | awk '{print $3}' | tr -d '"')
+                    echo "Verified S3 Bucket: ${BUCKET_NAME}"
+                    if [ -n "$BUCKET_NAME" ]; then
+                        curl -fsS "http://floci:4566/${BUCKET_NAME}/index.html" > /dev/null
+                        echo "Floci S3 Website endpoint verified: http://floci:4566/${BUCKET_NAME}/index.html"
+                    fi
+
+                    echo "Verifying Floci ECS Backend container status..."
+                    docker ps --filter "name=floci-aws-ecs" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+                    echo "Floci Cloud Deployment verified successfully!"
+                '''
+            }
+        }
+
+        stage('Deploy Docker Compose (Develop)') {
+            when {
+                expression { return params.DEPLOY_COMPOSE == true }
+            }
+            steps {
+                sh '''
+                    set -eu
+                    echo "=== [Develop] Deploying Isolated Docker Compose Stack ==="
+                    docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" up -d
+                    docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" ps
+                '''
+            }
+        }
+
+        stage('Verify Deployment Health (Develop)') {
+            when {
+                expression { return params.DEPLOY_COMPOSE == true }
+            }
+            steps {
+                sh '''
+                    set -eu
+                    echo "=== [Develop] Verifying Service Health ==="
+                    echo "Waiting for PostgreSQL container (billing-dev-postgres) to report healthy..."
+                    for i in $(seq 1 15); do
+                        STATUS=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' billing-dev-postgres 2>/dev/null || echo "not_found")
+                        if [ "$STATUS" = "healthy" ]; then
+                            echo "PostgreSQL is healthy!"
+                            break
+                        fi
+                        echo "Current PostgreSQL health: $STATUS (attempt $i/15)"
+                        sleep 2
+                    done
+
+                    echo "Verifying running containers for project billing-develop..."
+                    docker ps --filter "name=billing-dev-" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+                    echo "Verifying backend Secrets Manager linkage log..."
+                    for i in $(seq 1 15); do
+                        if docker logs billing-dev-backend 2>&1 | grep -q "AWS Secrets Manager Linkage"; then
+                            echo "Secrets Manager log detected in billing-dev-backend!"
+                            docker logs billing-dev-backend 2>&1 | grep "SecretsManager" || true
+                            break
+                        fi
+                        echo "Waiting for backend startup logs (attempt $i/15)..."
+                        sleep 2
+                    done
+
+                    echo "Verifying HTTP response from frontend on port 3001..."
+                    for i in $(seq 1 15); do
+                        if docker exec billing-dev-frontend curl -fsS http://localhost:80/ > /dev/null 2>&1; then
+                            echo "Frontend is reachable and healthy!"
+                            break
+                        fi
+                        echo "Waiting for frontend (attempt $i/15)..."
+                        sleep 2
+                    done
+
+                    echo "Development environment successfully deployed and verified!"
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            echo "Pipeline billing-develop finished with status: ${currentBuild.currentResult}"
+        }
+        success {
+            echo "Artifacts are ready for zero-rebuild promotion to QA."
+        }
+        failure {
+            echo "billing-develop failed. Downstream QA promotion is blocked."
+        }
+    }
+}

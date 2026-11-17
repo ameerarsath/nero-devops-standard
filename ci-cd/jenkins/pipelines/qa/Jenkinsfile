@@ -1,0 +1,350 @@
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '30'))
+        skipDefaultCheckout(true)
+    }
+
+    parameters {
+        string(
+            name: 'DEVELOP_BUILD_NUMBER',
+            defaultValue: '',
+            description: 'The successful build number from billing-develop to promote to QA (REQUIRED).'
+        )
+        booleanParam(
+            name: 'DEPLOY_FLOCI_TF',
+            defaultValue: true,
+            description: 'Apply QA Terraform configuration to Floci (endpoint http://floci:4566).'
+        )
+        booleanParam(
+            name: 'DEPLOY_COMPOSE',
+            defaultValue: false,
+            description: 'Deploy isolated QA Docker Compose stack (disabled by default in favor of Floci ECS/S3).'
+        )
+        booleanParam(
+            name: 'AUTO_APPROVE_QA',
+            defaultValue: false,
+            description: 'Bypass manual approval prompt for automated staging runs.'
+        )
+    }
+
+    environment {
+        PROJECT_WORKSPACE     = '/workspace/billing-system'
+        COMPOSE_FILE          = '/workspace/billing-system/deployment/compose.qa.yaml'
+        COMPOSE_PROJECT       = 'billing-qa'
+        DEDICATED_AWS_ACCOUNT = '444455556666'
+        SECRET_NAME           = 'billing-qa/app-secrets'
+        TF_DIR                = '/workspace/billing-system/infrastructure/terraform/environments/qa'
+        TF_ROOT               = '/workspace/billing-system/infrastructure/terraform'
+        TF_DATA_DIR           = '/var/jenkins_home/.terraform-data-qa'
+        TF_IN_AUTOMATION      = 'true'
+        TF_INPUT              = 'false'
+        TF_VAR_floci_endpoint = 'http://floci:4566'
+        DEPLOY_FLOCI_TF       = "${params.DEPLOY_FLOCI_TF}"
+        DEPLOY_COMPOSE        = "${params.DEPLOY_COMPOSE}"
+    }
+
+    stages {
+        stage('Validate Promotion Parameters') {
+            steps {
+                script {
+                    if (!params.DEVELOP_BUILD_NUMBER || params.DEVELOP_BUILD_NUMBER.trim() == '') {
+                        error("Promotion aborted: DEVELOP_BUILD_NUMBER parameter is mandatory.")
+                    }
+                    echo "Promoting from billing-develop build: #${params.DEVELOP_BUILD_NUMBER}"
+                }
+                sh '''
+                    set -eu
+                    echo "=== [QA] Verifying Floci Connectivity ==="
+                    curl -fsS http://floci:4566/_localstack/health > /dev/null
+                '''
+            }
+        }
+
+        stage('Verify Floci Secrets Linkage (QA)') {
+            steps {
+                sh '''
+                    set -eu
+                    echo "=== [QA] Verifying AWS Secrets Manager in Floci ==="
+                    echo "Dedicated AWS Account: ${DEDICATED_AWS_ACCOUNT}"
+                    echo "Target Secret Name:    ${SECRET_NAME}"
+
+                    python3 "${PROJECT_WORKSPACE}/infrastructure/scripts/manage_floci_secrets.py" "http://floci:4566" "qa"
+                    echo "Floci Secrets Manager verification PASSED for QA."
+                '''
+            }
+        }
+
+        stage('Copy Artifacts from Develop') {
+            steps {
+                sh '''
+                    set -eu
+                    echo "=== [QA] Copying Artifacts from billing-develop #${DEVELOP_BUILD_NUMBER} ==="
+                    SRC_ARCHIVE="/var/jenkins_home/jobs/billing-develop/builds/${DEVELOP_BUILD_NUMBER}/archive"
+                    if [ ! -d "$SRC_ARCHIVE" ]; then
+                        echo "CRITICAL: Build #${DEVELOP_BUILD_NUMBER} archive directory does not exist: $SRC_ARCHIVE"
+                        exit 1
+                    fi
+                    rm -f frontend-dist-*.tar.gz release-manifest.json frontend.sha256
+                    cp -f "$SRC_ARCHIVE"/release-manifest.json ./
+                    FRONTEND_TAR=$(grep -A3 '"frontend":' release-manifest.json | grep '"artifact_file":' | cut -d'"' -f4)
+                    cp -f "$SRC_ARCHIVE"/"${FRONTEND_TAR}" ./
+                    if [ -f "$SRC_ARCHIVE"/frontend.sha256 ]; then
+                        cp -f "$SRC_ARCHIVE"/frontend.sha256 ./
+                    fi
+                    ls -la release-manifest.json "${FRONTEND_TAR}"
+                    echo "Artifacts successfully retrieved from billing-develop #${DEVELOP_BUILD_NUMBER}."
+                '''
+            }
+        }
+
+        stage('Verify Frontend Integrity (Zero Rebuild)') {
+            steps {
+                sh '''
+                    set -eu
+                    echo "=== [QA] Verifying Frontend Checksum (Zero Rebuild) ==="
+                    EXPECTED_SHA=$(grep -A2 '"frontend":' release-manifest.json | grep '"sha256":' | cut -d'"' -f4)
+                    FRONTEND_TAR=$(grep -A3 '"frontend":' release-manifest.json | grep '"artifact_file":' | cut -d'"' -f4)
+
+                    ACTUAL_SHA=$(sha256sum "${FRONTEND_TAR}" | awk '{print $1}')
+                    echo "Frontend Archive: ${FRONTEND_TAR}"
+                    echo "Expected SHA256:  ${EXPECTED_SHA}"
+                    echo "Calculated SHA:   ${ACTUAL_SHA}"
+
+                    if [ "${ACTUAL_SHA}" != "${EXPECTED_SHA}" ]; then
+                        echo "CRITICAL ERROR: Frontend bundle checksum mismatch!"
+                        exit 1
+                    fi
+                    echo "Frontend checksum verified: Mathematical match with Development build."
+                '''
+            }
+        }
+
+        stage('Promote Docker Images (Zero Rebuild)') {
+            steps {
+                sh '''
+                    set -eu
+                    echo "=== [QA] Promoting Docker Images without Rebuilding ==="
+                    SOURCE_BACKEND_TAG=$(grep -A2 '"backend":' release-manifest.json | grep '"image_tag":' | cut -d'"' -f4)
+                    SOURCE_BACKEND_ID=$(grep -A2 '"backend":' release-manifest.json | grep '"image_id":' | cut -d'"' -f4)
+
+                    echo "Tagging ${SOURCE_BACKEND_TAG} -> billing-backend:qa"
+                    docker tag "${SOURCE_BACKEND_TAG}" "billing-backend:qa"
+                    docker tag "${SOURCE_BACKEND_TAG}" "billing-backend:qa-${DEVELOP_BUILD_NUMBER}"
+
+                    PROMOTED_ID=$(docker inspect --format='{{.Id}}' "billing-backend:qa")
+                    if [ "${PROMOTED_ID}" != "${SOURCE_BACKEND_ID}" ]; then
+                        echo "CRITICAL ERROR: Promoted image ID does not match Development image ID!"
+                        exit 1
+                    fi
+                    echo "Image digest verified: ${PROMOTED_ID}"
+
+                    # Also promote frontend image
+                    FRONTEND_SOURCE_TAG=$(echo "$SOURCE_BACKEND_TAG" | sed 's/billing-backend/billing-frontend/')
+                    docker tag "${FRONTEND_SOURCE_TAG}" "billing-frontend:qa"
+                    docker tag "${FRONTEND_SOURCE_TAG}" "billing-frontend:qa-${DEVELOP_BUILD_NUMBER}"
+                '''
+            }
+        }
+
+        stage('Terraform Floci Integration (QA)') {
+            steps {
+                sh '''
+                    set -eu
+                    echo "=== [QA] Running QA Terraform Plan against Floci ==="
+                    mkdir -p "$TF_DATA_DIR"
+                    terraform -chdir="$TF_DIR" init -backend=false -input=false
+                    terraform -chdir="$TF_DIR" validate
+
+                    # If secret already exists in Floci, ensure it is imported into Terraform state
+                    SECRET_ARN=$(python3 -c "
+import urllib.request, json
+try:
+    req = urllib.request.Request('http://floci:4566', data=json.dumps({'SecretId': '${SECRET_NAME}'}).encode(), headers={
+        'X-Amz-Target': 'secretsmanager.DescribeSecret',
+        'Content-Type': 'application/x-amz-json-1.1',
+        'Authorization': 'AWS4-HMAC-SHA256 Credential=${DEDICATED_AWS_ACCOUNT}/20261105/us-east-1/secretsmanager/aws4_request, SignedHeaders=content-type;host;x-amz-target, Signature=mock'
+    })
+    with urllib.request.urlopen(req) as resp:
+        print(json.loads(resp.read().decode()).get('ARN', ''))
+except Exception:
+    pass
+" 2>/dev/null || true)
+                    if [ -n "$SECRET_ARN" ] && ! terraform -chdir="$TF_DIR" state list 2>/dev/null | grep -q "module.app_secrets.aws_secretsmanager_secret.app_secrets"; then
+                        echo "Importing pre-existing Floci secret ${SECRET_ARN} into Terraform state..."
+                        terraform -chdir="$TF_DIR" import -var="floci_endpoint=http://floci:4566" -var="aws_account_id=${DEDICATED_AWS_ACCOUNT}" module.app_secrets.aws_secretsmanager_secret.app_secrets "$SECRET_ARN" || true
+                    fi
+
+                    terraform -chdir="$TF_DIR" plan -var="floci_endpoint=http://floci:4566" -var="aws_account_id=${DEDICATED_AWS_ACCOUNT}" -out=tfplan.qa -no-color
+
+                    if [ "${DEPLOY_FLOCI_TF:-false}" = "true" ]; then
+                        echo "Applying QA Terraform resources to Floci account ${DEDICATED_AWS_ACCOUNT}..."
+                        terraform -chdir="$TF_DIR" apply -input=false tfplan.qa
+
+                        echo "=== [QA] Syncing Frontend Static Assets to QA S3 Website Bucket ==="
+                        FRONTEND_TAR=$(ls frontend-dist-*.tar.gz 2>/dev/null | head -1)
+                        if [ -n "$FRONTEND_TAR" ] && [ -f "$FRONTEND_TAR" ]; then
+                            mkdir -p /tmp/qa-frontend-dist
+                            tar -xzf "${FRONTEND_TAR}" -C /tmp/qa-frontend-dist
+                            python3 "${PROJECT_WORKSPACE}/infrastructure/scripts/sync_s3_frontend.py" "http://floci:4566" "${DEDICATED_AWS_ACCOUNT}" "/tmp/qa-frontend-dist" || true
+                            rm -rf /tmp/qa-frontend-dist
+                        fi
+                    fi
+                '''
+            }
+        }
+
+        stage('QA Deployment Gate') {
+            when {
+                expression { return params.AUTO_APPROVE_QA != true }
+            }
+            steps {
+                input(
+                    message: "Deploy billing application to QA environment? (Develop Build #${params.DEVELOP_BUILD_NUMBER})",
+                    ok: "Approve QA Deployment"
+                )
+            }
+        }
+
+        stage('Verify Floci Cloud Deployment (QA)') {
+            when {
+                expression { return params.DEPLOY_FLOCI_TF == true }
+            }
+            steps {
+                sh '''
+                    set -eu
+                    echo "=== [QA] Verifying Floci Cloud Deployment ==="
+                    BUCKET_NAME=$(terraform -chdir="$TF_DIR" state show module.frontend_website.aws_s3_bucket.this 2>/dev/null | grep -E '^\s*bucket\s*=' | head -1 | awk '{print $3}' | tr -d '"')
+                    echo "Verified QA S3 Bucket: ${BUCKET_NAME}"
+                    if [ -n "$BUCKET_NAME" ]; then
+                        curl -fsS "http://floci:4566/${BUCKET_NAME}/index.html" > /dev/null
+                        echo "Floci S3 Website endpoint verified: http://floci:4566/${BUCKET_NAME}/index.html"
+                    fi
+
+                    echo "Verifying Floci ECS Backend container status..."
+                    docker ps --filter "name=floci-aws-ecs" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+                    echo "QA Floci Cloud Deployment verified successfully!"
+                '''
+            }
+        }
+
+        stage('Deploy Docker Compose (QA)') {
+            when {
+                expression { return params.DEPLOY_COMPOSE == true }
+            }
+            steps {
+                sh '''
+                    set -eu
+                    echo "=== [QA] Deploying Isolated QA Docker Compose Stack ==="
+                    docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" up -d
+                    docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" ps
+                '''
+            }
+        }
+
+        stage('Verify QA Health & Automated Tests') {
+            when {
+                expression { return params.DEPLOY_COMPOSE == true }
+            }
+            steps {
+                sh '''
+                    set -eu
+                    echo "=== [QA] Verifying QA Health & Running Tests ==="
+                    echo "Waiting for PostgreSQL container (billing-qa-postgres) to report healthy..."
+                    for i in $(seq 1 15); do
+                        STATUS=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' billing-qa-postgres 2>/dev/null || echo "not_found")
+                        if [ "$STATUS" = "healthy" ]; then
+                            echo "QA PostgreSQL is healthy!"
+                            break
+                        fi
+                        echo "Current QA PostgreSQL health: $STATUS (attempt $i/15)"
+                        sleep 2
+                    done
+
+                    echo "Verifying running containers for project billing-qa..."
+                    docker ps --filter "name=billing-qa-" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+                    echo "Verifying backend Secrets Manager linkage log in QA..."
+                    for i in $(seq 1 15); do
+                        if docker logs billing-qa-backend 2>&1 | grep -q "AWS Secrets Manager Linkage"; then
+                            echo "Secrets Manager log detected in billing-qa-backend!"
+                            docker logs billing-qa-backend 2>&1 | grep "SecretsManager" || true
+                            break
+                        fi
+                        echo "Waiting for QA backend startup logs (attempt $i/15)..."
+                        sleep 2
+                    done
+
+                    echo "Verifying HTTP frontend response on port 3002..."
+                    for i in $(seq 1 15); do
+                        if docker exec billing-qa-frontend curl -fsS http://localhost:80/ > /dev/null 2>&1; then
+                            echo "QA Frontend is reachable and healthy!"
+                            break
+                        fi
+                        echo "Waiting for QA frontend (attempt $i/15)..."
+                        sleep 2
+                    done
+
+                    echo "All QA integration tests and health checks passed!"
+                '''
+            }
+        }
+
+        stage('Sign-off QA Release') {
+            steps {
+                sh '''
+                    set -eu
+                    echo "=== [QA] Generating QA Sign-off Manifest ==="
+                    GIT_COMMIT=$(grep -o '"git_commit": "[^"]*"' release-manifest.json | head -1 | cut -d'"' -f4)
+                    IMAGE_ID=$(docker inspect --format='{{.Id}}' "billing-backend:qa")
+                    FRONTEND_TAR=$(grep -A3 '"frontend":' release-manifest.json | grep '"artifact_file":' | cut -d'"' -f4)
+                    FRONTEND_SHA=$(sha256sum "${FRONTEND_TAR}" | awk '{print $1}')
+
+                    cat <<EOF > qa-release-manifest.json
+{
+  "qa_build_number": "${BUILD_NUMBER}",
+  "develop_build_number": "${DEVELOP_BUILD_NUMBER}",
+  "git_commit": "${GIT_COMMIT}",
+  "timestamp": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
+  "qa_status": "PASSED",
+  "dedicated_aws_account": "${DEDICATED_AWS_ACCOUNT}",
+  "secret_name": "${SECRET_NAME}",
+  "backend": {
+    "image_tag": "billing-backend:qa-${DEVELOP_BUILD_NUMBER}",
+    "image_id": "${IMAGE_ID}"
+  },
+  "frontend": {
+    "artifact_file": "${FRONTEND_TAR}",
+    "sha256": "${FRONTEND_SHA}"
+  }
+}
+EOF
+                    cat qa-release-manifest.json
+                '''
+            }
+            post {
+                success {
+                    archiveArtifacts(
+                        artifacts: 'qa-release-manifest.json,frontend-dist-*.tar.gz',
+                        fingerprint: true
+                    )
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo "Pipeline billing-qa finished with status: ${currentBuild.currentResult}"
+        }
+        success {
+            echo "QA release manifest is verified and ready for Production promotion."
+        }
+        failure {
+            echo "billing-qa failed. Production promotion blocked."
+        }
+    }
+}

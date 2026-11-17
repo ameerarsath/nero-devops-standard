@@ -1,0 +1,103 @@
+
+pipeline {
+    // Local learning lab. Use a dedicated isolated agent in production.
+    agent any
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+        skipDefaultCheckout(true)
+    }
+
+    environment {
+        PROJECT_WORKSPACE = '/workspace/billing-system'
+        TF_ROOT = '/workspace/billing-system/infrastructure/terraform'
+        TF_DIR = '/workspace/billing-system/infrastructure/terraform/environments/local'
+        TF_DATA_DIR = '/var/jenkins_home/.terraform-data'
+
+        TF_IN_AUTOMATION = 'true'
+        TF_INPUT = 'false'
+
+        // Floci endpoint reachable from Jenkins on Docker Desktop.
+        TF_VAR_floci_endpoint = 'http://floci:4566'
+    }
+
+    stages {
+        stage('Verify Workspace and State') {
+            steps {
+                sh '''
+                    set -eu
+                    test -d "$PROJECT_WORKSPACE"
+                    test -d "$TF_ROOT"
+                    test -d "$TF_DIR"
+                    test -f "$TF_DIR/terraform.tfstate"
+                    echo "Terraform root: $TF_ROOT"
+                    echo "Environment: $TF_DIR"
+                    echo "State file found: $TF_DIR/terraform.tfstate"
+                '''
+            }
+        }
+
+        stage('Check Terraform installation') {
+            steps {
+                sh '''
+                    terraform version
+                    terraform -help > /dev/null
+                '''
+            }
+        }
+
+        stage('Format check') {
+            steps {
+                sh '''
+                    terraform fmt -check -recursive "$TF_ROOT/environments"
+                    terraform fmt -check -recursive "$TF_ROOT/modules"
+                '''
+            }
+        }
+
+        stage('Initialize') {
+            steps {
+                sh '''
+                    mkdir -p "$TF_DATA_DIR"
+                    terraform -chdir="$TF_DIR" init \
+                        -backend=false \
+                        -input=false
+                '''
+            }
+        }
+
+        stage('Validate') {
+            steps {
+                sh '''
+                    terraform -chdir="$TF_DIR" validate
+                '''
+            }
+        }
+
+        stage('Plan against Floci') {
+            steps {
+                sh '''
+                    terraform -chdir="$TF_DIR" plan \
+                        -input=false \
+                        -no-color
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Terraform plan pipeline finished. No apply was performed.'
+        }
+
+        success {
+            echo 'Terraform formatting, initialization, validation and planning succeeded.'
+        }
+
+        failure {
+            echo 'Terraform pipeline failed. Review the stage logs. No infrastructure apply was attempted.'
+        }
+    }
+}

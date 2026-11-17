@@ -1,0 +1,11 @@
+*.log
+.env
+.env.*
+!.env.example
+secrets/
+workspace/
+floci-data/
+jenkins_home/
+*.pem
+*.key
+id_rsa

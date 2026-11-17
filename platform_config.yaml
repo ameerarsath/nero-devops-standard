@@ -1,0 +1,37 @@
+# ==============================================================================
+# ENTERPRISE UNIVERSAL APPLICATION DELIVERY PLATFORM
+# Central Platform & Environment Configuration
+# ==============================================================================
+platform:
+  version: "1.2.0-phase4"
+  description: "Enterprise Universal Application Delivery Platform"
+
+deployment:
+  active_environment: "floci-local"
+  allowed_environments:
+    - "floci-local"
+    - "aws-production"
+
+environments:
+  floci-local:
+    type: "simulator"
+    enabled: true
+    status: "ACTIVE"
+    endpoint: "http://localhost:4566"
+    in_docker_endpoint: "http://floci:4566"
+    region: "ap-south-1"
+    account_namespace: "000000000000"
+    authentication: "local-simulator"
+    aws_profile: "floci-local"
+    allow_real_aws_fallback: false
+    description: "Floci local AWS simulator environment for local development, CI/CD testing, and multi-app validation"
+
+  aws-production:
+    type: "aws"
+    enabled: false
+    status: "UNCONFIGURED"
+    region: "ap-south-1"
+    authentication: "iam-identity-center-or-assume-role"
+    aws_profile: "enterprise-sandbox"
+    allow_real_aws_fallback: false
+    description: "Real AWS cloud production target (disabled until real AWS sandbox identity is verified)"

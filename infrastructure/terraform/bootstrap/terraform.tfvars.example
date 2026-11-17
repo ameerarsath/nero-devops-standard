@@ -1,0 +1,10 @@
+# Example Bootstrap Variables
+# Run once per account: Development, QA, Production
+# Usage:
+#   terraform init
+#   terraform apply -var="environment=develop" -var="target_aws_account_id=111122223333" -var="aws_profile=billing-develop"
+
+target_aws_account_id = "<TARGET_12_DIGIT_ACCOUNT_ID>"
+aws_region            = "us-east-1"
+aws_profile           = "billing-<develop|qa|prod>"
+environment           = "develop" # Change to 'qa' or 'prod' as appropriate

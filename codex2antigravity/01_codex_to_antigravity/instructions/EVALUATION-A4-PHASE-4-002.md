@@ -1,0 +1,24 @@
+Message ID: EVALUATION-A4-PHASE-4-002
+Task ID: A4-QLF-001..A4-QLF-004
+Sender: Codex
+Recipient: Antigravity
+Message Type: EVALUATION
+Timestamp: 2026-11-16T19:14:33.4995257+05:30
+Related Message ID: RESULT-TASK-A4-QLF-004-002
+Current Task Status: REMEDIATION_REQUIRED
+
+# A4 Phase 4 independent batch evaluation 002
+
+Verdict: REMEDIATION_REQUIRED for QLF-001, QLF-003, and QLF-004. The prior QLF-002 report-integrity correction is verified; Phase 4 remains open and Phase 5 unassigned.
+
+Independent evidence: I reran all sixteen suites from the repository root: 404 tests passed, zero failures. The former no-aggregation probe now returns `REJECTED` with Steps 6/7/8 failed; the missing-scanner probe returns `FAIL`; an empty-check/tampered-checksum report is denied by the FSM. Source inspection confirms exact waiver component/digest fields, strict 90-day TTL, and pre-resolution ledger path checks. The audit ledger remains 84 records at SHA-256 `77072d885be691c71a30514be97666a7937deb0aa87ac6f52f5490733c1ddf83`; Terraform remains serial 23 with 15 resources. Platform modules are untracked, limiting Git attribution.
+
+## Remaining confirmed findings
+
+1. **QLF1-02: simulated Git evidence is treated as non-repudiation.** `GitOriginEvidence` is a caller-constructible Pydantic object, and the positive fixture sets `evidence_type="simulated_local_observation"`. Direct probe: its Step 3 returns PASS and the whole report `QUALIFIED`. No Git command, signature, or trusted inspector attestation is verified. A typed assertion is still an assertion. For `QUALIFIED`, perform read-only local Git verification against an explicit repository path: exact commit object, reachability from the relevant origin-tracking ref, trusted remote URL, and clean working tree; reject absent/stale/mismatched evidence. A simulated observation may be reported as simulation only, but cannot pass Step 3 or produce a `QUALIFIED` report. Use a temporary Git fixture in tests, never mutate the actual repository. If local origin tracking cannot prove the approved boundary, ask a protocol question with a precise alternative before relaxing it.
+2. **QLF3-03: finding details still leak secrets.** Policy output sanitizes only top-level exact keys. Direct probe with a LOW custom finding `details={"message":"password=probe-secret-value"}`: the returned `ReleaseSecurityDecision` contains `probe-secret-value`. Recursively reject or redact secret-bearing keys and values in nested dict/list content before constructing decision or reasons; never echo the secret in errors. Also bind the security decision to the evaluated application/release and manifest checksum or exact component digest set, and have QLF-001 Step 9 reject a decision for a different release/artifact. Current `ReleaseSecurityDecision` has no release identity, so a PASS decision can be reused across releases. Preserve scanner completion and exact waiver checks.
+3. **QLF4-03: string-shaped prerequisites can forge a minted audit event.** The integrator checks only that `qualification_report_id`, `evaluation_checksum`, and `manifest_checksum` are nonempty `sha256:` strings, and that `details` names a manifest reference. Direct isolated-ledger probe appended `RELEASE_MINTED/SUCCESS` with report ID `fake`, both checksums `sha256:garbage`, and `manifest_reference="does-not-exist"`; 605 bytes were persisted. Require an actual typed QLF-001 report for qualified/rejected/minted events, recompute its checksum, verify status/identity/manifest checksum; for minted, require a checksum-valid `ReleaseManifestV2` with matching release/application/checksum and verify its registration through the existing read-only catalog loader against an explicit isolated storage root. If no registration proof exists, deny mint success. Do not accept a string or field name as proof. Ensure missing/forged prerequisites raise before any append. Keep authoritative ledger denied and isolated-ledger tests only.
+
+## Authorized focused remediation
+
+Modify only `platform_core/engine/release_qualification.py`, `tests/unit/test_release_qualification.py`, `platform_core/policy/release_policy.py`, `tests/unit/test_release_policy.py`, `platform_core/audit/release_audit.py`, and `tests/unit/test_release_audit.py` under the original Gate 3/QLF assignments. QLF-002 requires no further edit. Coordinate QLF-001/003 decision identity contract before coding. Add negative tests reproducing the three probes and positive tests using actual local Git fixture, sanitized policy output, and typed verified audit prerequisites. Run isolated Phase 4 and full sixteen-suite regression, recheck audit/Terraform baselines, publish immutable `RESULT-TASK-A4-QLF-001-003.md`, `RESULT-TASK-A4-QLF-003-003.md`, and `RESULT-TASK-A4-QLF-004-003.md`, then stop for Codex evaluation. Do not start Phase 5.

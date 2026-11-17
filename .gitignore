@@ -1,0 +1,38 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pytest & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Terraform runtime & state backup
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Local runtime evidence and credentials
+**/audit_log.jsonl
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.sqlite
+*.sqlite3
+*.db
+*.log
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Local agent session transcripts
+codex-session-*.md

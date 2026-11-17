@@ -1,0 +1,155 @@
+// ============================================================================
+// NERO Universal Enterprise DevOps Automation Platform
+// Dedicated Continuous Integration Declarative Pipeline (A3-BLD-003)
+//
+// Purely automated, event-driven CI workflow for Pull Requests and Code Commits.
+// Enforces catalog authorization, parallel builds, 80% diff coverage, DevSecOps
+// scans (Gitleaks, Semgrep, Trivy), CycloneDX SBOM generation, and cryptographic
+// CI evidence logging.
+// ============================================================================
+
+pipeline {
+    agent any
+
+    options {
+        timeout(time: 30, unit: 'MINUTES')
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '30'))
+        timestamps()
+    }
+
+    parameters {
+        string(name: 'APPLICATION', defaultValue: 'hotel-billing', description: 'Application ID from Central Catalog')
+        string(name: 'TARGET_ENV', defaultValue: 'develop', description: 'Target environment branch context')
+        string(name: 'GIT_BRANCH', defaultValue: 'develop', description: 'Git source branch')
+        string(name: 'COMMIT_SHA', defaultValue: 'HEAD', description: 'Git commit hash')
+        string(name: 'PR_ID', defaultValue: '', description: 'Optional Pull Request ID')
+    }
+
+    environment {
+        PYTHONUNBUFFERED = "1"
+        PYTHONPATH = "."
+        NERO_SECURITY_TIER = "tier-2-standard"
+        FLOCI_ENDPOINT = "http://floci:4566"
+        OCI_REGISTRY = "localhost:5100"
+    }
+
+    stages {
+        stage('Preflight & Catalog Authorization') {
+            steps {
+                echo "=== NERO CI Stage 1: Preflight & Catalog Authorization ==="
+                echo "Target Application: ${params.APPLICATION} | Branch: ${params.GIT_BRANCH} | Commit: ${params.COMMIT_SHA}"
+                sh '''
+                    python -m platform_core.engine.cli inspect-spec app.spec.yaml
+                '''
+            }
+        }
+
+        stage('Secret Scanning (Gitleaks)') {
+            steps {
+                echo "=== NERO CI Stage 2: Secret Scanning ==="
+                sh '''
+                    python -c "
+from platform_core.adapters.security.gitleaks_adapter import GitleaksAdapter
+scanner = GitleaksAdapter()
+res = scanner.scan_repository(repo_path='.')
+print(f'Gitleaks scan complete: {res.findings_count} secrets found')
+if not res.passed:
+    exit(1)
+"
+                '''
+            }
+        }
+
+        stage('Parallel Component Build & Caching') {
+            steps {
+                echo "=== NERO CI Stage 3: Multi-Component Parallel Build ==="
+                sh '''
+                    python -c "
+from platform_core.engine.build_orchestrator import BuildOrchestrator
+orchestrator = BuildOrchestrator()
+res = orchestrator.build_application('app.spec.yaml', tag='ci-${BUILD_NUMBER}', dry_run=True)
+print(f'Build complete: {res.successful_components}/{res.total_components} components built in {res.duration_seconds}s')
+if not res.success:
+    exit(1)
+"
+                '''
+            }
+        }
+
+        stage('Automated Testing & JUnit Collection') {
+            steps {
+                echo "=== NERO CI Stage 4: Automated Testing ==="
+                sh '''
+                    python -m platform_core.engine.test_orchestrator run-tests --spec app.spec.yaml
+                '''
+            }
+        }
+
+        stage('Code Quality & Diff Coverage Gate') {
+            steps {
+                echo "=== NERO CI Stage 5: Code Quality & 80% Changed-Code Coverage Gate ==="
+                sh '''
+                    python -m platform_core.engine.coverage_gate enforce --threshold 80.0
+                '''
+            }
+        }
+
+        stage('DevSecOps SAST & SCA Scans') {
+            steps {
+                echo "=== NERO CI Stage 6: DevSecOps Scanners (Semgrep & Trivy) ==="
+                sh '''
+                    python -m platform_core.adapters.security.scanner_orchestrator scan --all
+                '''
+            }
+        }
+
+        stage('SBOM & Provenance Generation') {
+            steps {
+                echo "=== NERO CI Stage 7: CycloneDX SBOM & Signatures ==="
+                sh '''
+                    python -m platform_core.engine.sbom_generator generate --app "${APPLICATION}" --tag "ci-${BUILD_NUMBER}"
+                '''
+            }
+        }
+
+        stage('CI Evidence & Cryptographic Audit') {
+            steps {
+                echo "=== NERO CI Stage 8: Structured Evidence Record & Audit Append ==="
+                sh '''
+                    python -m platform_core.engine.ci_evidence generate \
+                        --app "${APPLICATION}" \
+                        --build "${BUILD_NUMBER}" \
+                        --commit "${COMMIT_SHA}" \
+                        --result "SUCCESS"
+                '''
+            }
+        }
+
+        stage('Developer Status & Feedback') {
+            steps {
+                echo "=== NERO CI Stage 9: SCM Feedback Publishing ==="
+                sh '''
+                    python -m platform_core.ci.feedback_publisher publish-status \
+                        --app "${APPLICATION}" \
+                        --commit "${COMMIT_SHA}" \
+                        --build-url "${BUILD_URL}"
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            echo "CI Execution finished. Collecting test and telemetry results."
+            junit allowEmptyResults: true, testResults: '**/junit*.xml'
+            archiveArtifacts allowEmptyResults: true, artifacts: 'ci_evidence.json,*.sarif,*.sbom.json'
+        }
+        success {
+            echo "NERO CI Pipeline SUCCESS: All quality and security gates passed."
+        }
+        failure {
+            echo "NERO CI Pipeline FAILED: Security, quality, or test gate violation."
+        }
+    }
+}

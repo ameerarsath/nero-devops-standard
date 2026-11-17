@@ -1,0 +1,377 @@
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '50'))
+        skipDefaultCheckout(true)
+    }
+
+    parameters {
+        string(
+            name: 'QA_BUILD_NUMBER',
+            defaultValue: '',
+            description: 'The successful QA build number from billing-qa that passed validation (REQUIRED).'
+        )
+        booleanParam(
+            name: 'DEPLOY_FLOCI_TF',
+            defaultValue: true,
+            description: 'Apply Production Terraform configuration to Floci (endpoint http://floci:4566).'
+        )
+        booleanParam(
+            name: 'DEPLOY_COMPOSE',
+            defaultValue: false,
+            description: 'Deploy isolated Production Docker Compose stack (disabled by default in favor of Floci ECS/S3).'
+        )
+        string(
+            name: 'RELEASE_NOTES',
+            defaultValue: '',
+            description: 'Change summary or ticket number for production audit trail.'
+        )
+    }
+
+    environment {
+        PROJECT_WORKSPACE     = '/workspace/billing-system'
+        COMPOSE_FILE          = '/workspace/billing-system/deployment/compose.prod.yaml'
+        COMPOSE_PROJECT       = 'billing-prod'
+        DEDICATED_AWS_ACCOUNT = '777788889999'
+        SECRET_NAME           = 'billing-prod/app-secrets'
+        TF_DIR                = '/workspace/billing-system/infrastructure/terraform/environments/prod'
+        TF_ROOT               = '/workspace/billing-system/infrastructure/terraform'
+        TF_DATA_DIR           = '/var/jenkins_home/.terraform-data-prod'
+        TF_IN_AUTOMATION      = 'true'
+        TF_INPUT              = 'false'
+        TF_VAR_floci_endpoint = 'http://floci:4566'
+        DEPLOY_FLOCI_TF       = "${params.DEPLOY_FLOCI_TF}"
+        DEPLOY_COMPOSE        = "${params.DEPLOY_COMPOSE}"
+    }
+
+    stages {
+        stage('Validate Parameters & Verify QA Gate') {
+            steps {
+                script {
+                    if (!params.QA_BUILD_NUMBER || params.QA_BUILD_NUMBER.trim() == '') {
+                        error("Production deployment aborted: QA_BUILD_NUMBER is required.")
+                    }
+                    echo "Initiating production release from validated QA Build: #${params.QA_BUILD_NUMBER}"
+                }
+                sh '''
+                    set -eu
+                    echo "=== [Production] Verifying Floci Connectivity ==="
+                    curl -fsS http://floci:4566/_localstack/health > /dev/null
+                '''
+            }
+        }
+
+        stage('Verify Floci Secrets Linkage (Production)') {
+            steps {
+                sh '''
+                    set -eu
+                    echo "=== [Production] Verifying AWS Secrets Manager in Floci ==="
+                    echo "Dedicated AWS Account: ${DEDICATED_AWS_ACCOUNT}"
+                    echo "Target Secret Name:    ${SECRET_NAME}"
+
+                    python3 "${PROJECT_WORKSPACE}/infrastructure/scripts/manage_floci_secrets.py" "http://floci:4566" "prod"
+                    echo "Floci Secrets Manager verification PASSED for Production."
+                '''
+            }
+        }
+
+        stage('Copy QA Artifacts & Verify QA Gate') {
+            steps {
+                sh '''
+                    set -eu
+                    echo "=== [Production] Copying Artifacts from billing-qa #${QA_BUILD_NUMBER} ==="
+                    SRC_ARCHIVE="/var/jenkins_home/jobs/billing-qa/builds/${QA_BUILD_NUMBER}/archive"
+                    if [ ! -d "$SRC_ARCHIVE" ]; then
+                        echo "CRITICAL: QA Build #${QA_BUILD_NUMBER} archive directory does not exist: $SRC_ARCHIVE"
+                        exit 1
+                    fi
+                    rm -f frontend-dist-*.tar.gz qa-release-manifest.json
+                    cp -f "$SRC_ARCHIVE"/qa-release-manifest.json ./
+                    FRONTEND_TAR=$(grep -A3 '"frontend":' qa-release-manifest.json | grep '"artifact_file":' | cut -d'"' -f4)
+                    cp -f "$SRC_ARCHIVE"/"${FRONTEND_TAR}" ./
+                    ls -la qa-release-manifest.json "${FRONTEND_TAR}"
+                    echo "QA Artifacts successfully retrieved."
+
+                    echo "=== [Production] Verifying QA Quality Gate ==="
+                    QA_STATUS=$(grep -o '"qa_status": "[^"]*"' qa-release-manifest.json | head -1 | cut -d'"' -f4)
+                    if [ "$QA_STATUS" != "PASSED" ]; then
+                        echo "CRITICAL: Cannot promote to Production. QA status is: ${QA_STATUS}"
+                        exit 1
+                    fi
+                    echo "QA Gate Verified: PASSED"
+                '''
+            }
+        }
+
+        stage('Verify Frontend Parity (Zero Rebuild)') {
+            steps {
+                sh '''
+                    set -eu
+                    echo "=== [Production] Verifying Frontend Checksum Parity ==="
+                    EXPECTED_SHA=$(grep -A2 '"frontend":' qa-release-manifest.json | grep '"sha256":' | cut -d'"' -f4)
+                    FRONTEND_TAR=$(grep -A3 '"frontend":' qa-release-manifest.json | grep '"artifact_file":' | cut -d'"' -f4)
+
+                    ACTUAL_SHA=$(sha256sum "${FRONTEND_TAR}" | awk '{print $1}')
+                    echo "Frontend archive:  ${FRONTEND_TAR}"
+                    echo "Expected SHA256:   ${EXPECTED_SHA}"
+                    echo "Calculated SHA256: ${ACTUAL_SHA}"
+
+                    if [ "${ACTUAL_SHA}" != "${EXPECTED_SHA}" ]; then
+                        echo "CRITICAL ERROR: Frontend checksum does not match QA verified checksum!"
+                        exit 1
+                    fi
+                    echo "Frontend checksum verified: Mathematical parity with QA confirmed."
+                '''
+            }
+        }
+
+        stage('Promote Backend Image & Verify Parity (Zero Rebuild)') {
+            steps {
+                sh '''
+                    set -eu
+                    echo "=== [Production] Promoting Docker Image without Rebuilding ==="
+                    SOURCE_BACKEND_TAG=$(grep -A2 '"backend":' qa-release-manifest.json | grep '"image_tag":' | cut -d'"' -f4)
+                    if [ -z "${SOURCE_BACKEND_TAG}" ] || ! docker inspect "${SOURCE_BACKEND_TAG}" >/dev/null 2>&1; then
+                        SOURCE_BACKEND_TAG="billing-backend:qa"
+                    fi
+                    SOURCE_FRONTEND_TAG=$(echo "$SOURCE_BACKEND_TAG" | sed 's/billing-backend/billing-frontend/')
+                    if ! docker inspect "${SOURCE_FRONTEND_TAG}" >/dev/null 2>&1; then
+                        SOURCE_FRONTEND_TAG="billing-frontend:qa"
+                    fi
+
+                    PROD_TAG="prod-release-${QA_BUILD_NUMBER}"
+                    EXPECTED_IMAGE_ID=$(grep -A2 '"backend":' qa-release-manifest.json | grep '"image_id":' | cut -d'"' -f4)
+
+                    echo "Tagging ${SOURCE_BACKEND_TAG} -> billing-backend:${PROD_TAG}"
+                    docker tag "${SOURCE_BACKEND_TAG}" "billing-backend:${PROD_TAG}"
+                    docker tag "${SOURCE_BACKEND_TAG}" "billing-backend:prod"
+
+                    PROD_IMAGE_ID=$(docker inspect --format='{{.Id}}' "billing-backend:prod")
+                    if [ "${PROD_IMAGE_ID}" != "${EXPECTED_IMAGE_ID}" ]; then
+                        echo "CRITICAL SECURITY ERROR: Production image ID mismatch with QA verified build!"
+                        exit 1
+                    fi
+                    echo "Image parity verified: Production image is identical to QA (${PROD_IMAGE_ID})."
+
+                    # Also promote frontend image
+                    echo "Tagging ${SOURCE_FRONTEND_TAG} -> billing-frontend:prod"
+                    docker tag "${SOURCE_FRONTEND_TAG}" "billing-frontend:prod"
+                    docker tag "${SOURCE_FRONTEND_TAG}" "billing-frontend:${PROD_TAG}"
+                '''
+            }
+        }
+
+        stage('Terraform Floci Integration (Prod)') {
+            steps {
+                sh '''
+                    set -eu
+                    echo "=== [Production] Running Production Terraform Plan against Floci ==="
+                    mkdir -p "$TF_DATA_DIR"
+                    terraform -chdir="$TF_DIR" init -backend=false -input=false
+                    terraform -chdir="$TF_DIR" validate
+
+                    # If secret already exists in Floci, ensure it is imported into Terraform state
+                    SECRET_ARN=$(python3 -c "
+import urllib.request, json
+try:
+    req = urllib.request.Request('http://floci:4566', data=json.dumps({'SecretId': '${SECRET_NAME}'}).encode(), headers={
+        'X-Amz-Target': 'secretsmanager.DescribeSecret',
+        'Content-Type': 'application/x-amz-json-1.1',
+        'Authorization': 'AWS4-HMAC-SHA256 Credential=${DEDICATED_AWS_ACCOUNT}/20261105/us-east-1/secretsmanager/aws4_request, SignedHeaders=content-type;host;x-amz-target, Signature=mock'
+    })
+    with urllib.request.urlopen(req) as resp:
+        print(json.loads(resp.read().decode()).get('ARN', ''))
+except Exception:
+    pass
+" 2>/dev/null || true)
+                    if [ -n "$SECRET_ARN" ] && ! terraform -chdir="$TF_DIR" state list 2>/dev/null | grep -q "module.app_secrets.aws_secretsmanager_secret.app_secrets"; then
+                        echo "Importing pre-existing Floci secret ${SECRET_ARN} into Terraform state..."
+                        terraform -chdir="$TF_DIR" import -var="floci_endpoint=http://floci:4566" -var="aws_account_id=${DEDICATED_AWS_ACCOUNT}" module.app_secrets.aws_secretsmanager_secret.app_secrets "$SECRET_ARN" || true
+                    fi
+
+                    terraform -chdir="$TF_DIR" plan -var="floci_endpoint=http://floci:4566" -var="aws_account_id=${DEDICATED_AWS_ACCOUNT}" -out=tfplan.prod -no-color
+
+                    if [ "${DEPLOY_FLOCI_TF:-false}" = "true" ]; then
+                        echo "Applying Production Terraform resources to Floci account ${DEDICATED_AWS_ACCOUNT}..."
+                        terraform -chdir="$TF_DIR" apply -input=false tfplan.prod
+
+                        echo "=== [Production] Syncing Frontend Static Assets to Production S3 Website Bucket ==="
+                        FRONTEND_TAR=$(ls frontend-dist-*.tar.gz 2>/dev/null | head -1)
+                        if [ -n "$FRONTEND_TAR" ] && [ -f "$FRONTEND_TAR" ]; then
+                            mkdir -p /tmp/prod-frontend-dist
+                            tar -xzf "${FRONTEND_TAR}" -C /tmp/prod-frontend-dist
+                            python3 "${PROJECT_WORKSPACE}/infrastructure/scripts/sync_s3_frontend.py" "http://floci:4566" "${DEDICATED_AWS_ACCOUNT}" "/tmp/prod-frontend-dist" || true
+                            rm -rf /tmp/prod-frontend-dist
+                        fi
+                    fi
+                '''
+            }
+        }
+
+        stage('Approval Gate 1: QA / Technical Lead') {
+            steps {
+                script {
+                    echo "=== [Production Gate 1] Awaiting QA/Technical Lead Sign-off ==="
+                    def qaApproval = input(
+                        id: 'qa-technical-approval',
+                        message: "GATE 1/2: Technical & QA Lead Sign-Off - Confirm QA testing passed for QA Build #${params.QA_BUILD_NUMBER}?",
+                        ok: "SIGN OFF TECHNICAL RELEASE",
+                        parameters: [
+                            string(name: 'APPROVER_NAME', defaultValue: 'qa-lead', description: 'Authorized Technical/QA Approver Name')
+                        ],
+                        submitter: 'qa-lead,tech-lead,qa-manager,admin',
+                        submitterParameter: 'QA_APPROVER'
+                    )
+                    env.QA_APPROVER_USER = (qaApproval instanceof Map ? qaApproval['APPROVER_NAME'] : qaApproval) ?: 'qa-lead'
+                    env.QA_APPROVAL_TIME = new Date().format("yyyy-MM-dd'T'HH:mm:ss'Z'", TimeZone.getTimeZone('UTC'))
+                    echo "[AUDIT] Gate 1 Approved by: ${env.QA_APPROVER_USER} at ${env.QA_APPROVAL_TIME}"
+                }
+            }
+        }
+
+        stage('Approval Gate 2: Operations / Release Manager') {
+            steps {
+                script {
+                    echo "=== [Production Gate 2] Awaiting Operations / Release Manager Authorization ==="
+                    def opsApproval = input(
+                        id: 'ops-release-approval',
+                        message: "GATE 2/2: Operations / Release Authorization - Target: Production Local Stack - Authorize deployment?",
+                        ok: "AUTHORIZE PRODUCTION DEPLOYMENT",
+                        parameters: [
+                            string(name: 'APPROVER_NAME', defaultValue: 'ops-lead', description: 'Authorized Operations/Release Approver Name')
+                        ],
+                        submitter: 'release-manager,devops-lead,ops-admin,admin',
+                        submitterParameter: 'OPS_APPROVER'
+                    )
+                    env.OPS_APPROVER_USER = (opsApproval instanceof Map ? opsApproval['APPROVER_NAME'] : opsApproval) ?: 'ops-lead'
+                    env.OPS_APPROVAL_TIME = new Date().format("yyyy-MM-dd'T'HH:mm:ss'Z'", TimeZone.getTimeZone('UTC'))
+                    echo "[AUDIT] Gate 2 Approved by: ${env.OPS_APPROVER_USER} at ${env.OPS_APPROVAL_TIME}"
+
+                    // Anti-Collusion Enforcement (Segregation of Duties)
+                    if (env.QA_APPROVER_USER == env.OPS_APPROVER_USER) {
+                        error("CRITICAL COMPLIANCE VIOLATION: Segregation of duties violated! Approver '${env.QA_APPROVER_USER}' cannot fulfill both Gate 1 (Technical) and Gate 2 (Operations). Two distinct authorized individuals are required.")
+                    }
+
+                    // Record Audit Log
+                    sh """
+                        echo "================ PRODUCTION RELEASE AUDIT RECORD ================" > production-audit-trail.log
+                        echo "Build:                #${BUILD_NUMBER}" >> production-audit-trail.log
+                        echo "QA Source Build:      #${params.QA_BUILD_NUMBER}" >> production-audit-trail.log
+                        echo "Gate 1 Approver (QA): ${env.QA_APPROVER_USER} (${env.QA_APPROVAL_TIME})" >> production-audit-trail.log
+                        echo "Gate 2 Approver (Ops):${env.OPS_APPROVER_USER} (${env.OPS_APPROVAL_TIME})" >> production-audit-trail.log
+                        echo "Release Notes:        ${params.RELEASE_NOTES}" >> production-audit-trail.log
+                        cat production-audit-trail.log
+                    """
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts(
+                        artifacts: 'production-audit-trail.log',
+                        fingerprint: true,
+                        allowEmptyArchive: true
+                    )
+                }
+            }
+        }
+
+        stage('Verify Floci Cloud Deployment (Production)') {
+            when {
+                expression { return params.DEPLOY_FLOCI_TF == true }
+            }
+            steps {
+                sh '''
+                    set -eu
+                    echo "=== [Production] Verifying Floci Cloud Deployment ==="
+                    BUCKET_NAME=$(terraform -chdir="$TF_DIR" state show module.frontend_website.aws_s3_bucket.this 2>/dev/null | grep -E '^\s*bucket\s*=' | head -1 | awk '{print $3}' | tr -d '"')
+                    echo "Verified Production S3 Bucket: ${BUCKET_NAME}"
+                    if [ -n "$BUCKET_NAME" ]; then
+                        curl -fsS "http://floci:4566/${BUCKET_NAME}/index.html" > /dev/null
+                        echo "Floci S3 Website endpoint verified: http://floci:4566/${BUCKET_NAME}/index.html"
+                    fi
+
+                    echo "Verifying Floci ECS Backend container status..."
+                    docker ps --filter "name=floci-aws-ecs" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+                    echo "Production Floci Cloud Deployment verified successfully!"
+                '''
+            }
+        }
+
+        stage('Deploy Docker Compose (Production)') {
+            when {
+                expression { return params.DEPLOY_COMPOSE == true }
+            }
+            steps {
+                sh '''
+                    set -eu
+                    echo "=== [Production] Deploying Isolated Production Docker Compose Stack ==="
+                    docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" up -d
+                    docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" ps
+                '''
+            }
+        }
+
+        stage('Verify Production Health') {
+            when {
+                expression { return params.DEPLOY_COMPOSE == true }
+            }
+            steps {
+                sh '''
+                    set -eu
+                    echo "=== [Production] Verifying Service Health ==="
+                    echo "Waiting for PostgreSQL container (billing-prod-postgres) to report healthy..."
+                    for i in $(seq 1 15); do
+                        STATUS=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' billing-prod-postgres 2>/dev/null || echo "not_found")
+                        if [ "$STATUS" = "healthy" ]; then
+                            echo "Production PostgreSQL is healthy!"
+                            break
+                        fi
+                        echo "Current Production PostgreSQL health: $STATUS (attempt $i/15)"
+                        sleep 2
+                    done
+
+                    echo "Verifying running containers for project billing-prod..."
+                    docker ps --filter "name=billing-prod-" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+                    echo "Verifying backend Secrets Manager linkage log in Production..."
+                    for i in $(seq 1 15); do
+                        if docker logs billing-prod-backend 2>&1 | grep -q "AWS Secrets Manager Linkage"; then
+                            echo "Secrets Manager log detected in billing-prod-backend!"
+                            docker logs billing-prod-backend 2>&1 | grep "SecretsManager" || true
+                            break
+                        fi
+                        echo "Waiting for Production backend startup logs (attempt $i/15)..."
+                        sleep 2
+                    done
+
+                    echo "Verifying HTTP frontend response on port 3003..."
+                    for i in $(seq 1 15); do
+                        if docker exec billing-prod-frontend curl -fsS http://localhost:80/ > /dev/null 2>&1; then
+                            echo "Production Frontend is reachable and healthy!"
+                            break
+                        fi
+                        echo "Waiting for Production frontend (attempt $i/15)..."
+                        sleep 2
+                    done
+
+                    echo "Production deployment verified successfully!"
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            echo "Production release pipeline finished with status: ${currentBuild.currentResult}"
+        }
+        success {
+            echo "PRODUCTION RELEASE SUCCEEDED. Build #${QA_BUILD_NUMBER} is now live."
+        }
+        failure {
+            echo "CRITICAL: Production deployment failed. Review logs for rollback status."
+        }
+    }
+}

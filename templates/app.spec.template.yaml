@@ -1,0 +1,63 @@
+# ==============================================================================
+# NERO ENTERPRISE DEVOPS STANDARD — APPLICATION SPECIFICATION TEMPLATE
+# File: app.spec.yaml
+# Description: Defines application metadata, runtime components, dependencies, 
+#              build/deployment adapters, health checks, and secrets.
+# ==============================================================================
+
+apiVersion: platform.enterprise.com/v1
+kind: Application
+
+metadata:
+  # Unique application identifier (must match registered id in applications.yaml)
+  name: "my-service"
+  version: "1.0.0"
+  description: "Enterprise Production Microservice Description"
+  owner: "team-platform@enterprise.com"
+
+spec:
+  # Deployable runtime components
+  components:
+    - name: "api"
+      # Supported types: container-service, worker-service, static-site
+      type: "container-service"
+      source:
+        context: "."
+        dockerfile: "Dockerfile"
+      build:
+        # Supported adapters: dockerfile, node, java-maven
+        adapter: "dockerfile"
+        target_stage: "runtime"
+      runtime:
+        name: "nodejs"           # or python, java, etc.
+        version: "22"
+        port: 8080               # Container port
+        cpu_units: 256           # 256 = 0.25 vCPU
+        memory_mb: 512           # 512 MB
+        health_check:
+          path: "/health"
+          interval_seconds: 15
+          timeout_seconds: 5
+          healthy_threshold: 2
+      deployment:
+        # Supported adapters: ecs, s3-static
+        adapter: "ecs"
+        desired_count: 1
+
+  # Cloud infrastructure dependencies
+  dependencies:
+    # Example Database dependency:
+    # - name: "database"
+    #   type: "rds-postgres"
+    #   engine_version: "15"
+    #   allocated_storage_gb: 20
+    # Example Queue dependency:
+    # - name: "jobs-queue"
+    #   type: "sqs"
+
+  # Secrets Manager schema validation
+  secrets:
+    schema:
+      - name: "api.key"
+        description: "Internal service authorization key"
+        required: false

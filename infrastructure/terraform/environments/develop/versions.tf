@@ -1,0 +1,17 @@
+terraform {
+  required_version = ">= 1.10.0, < 2.0.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 6.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
+  }
+
+  # Local-only simulated environment: uses local state file.
+  # Never falls back to real AWS S3 remote backend.
+}

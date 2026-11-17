@@ -1,0 +1,135 @@
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+        skipDefaultCheckout(true)
+    }
+
+    environment {
+        WORKSPACE_ROOT = '/workspace/billing-system'
+        COMPOSE_FILE = '/workspace/billing-system/deployment/compose.yaml'
+        CI = 'true'
+    }
+
+    stages {
+        stage('Verify Workspace') {
+            steps {
+                sh '''
+                    set -eu
+                    test -d "$WORKSPACE_ROOT/backend"
+                    test -d "$WORKSPACE_ROOT/frontend"
+                    test -f "$COMPOSE_FILE"
+                    echo "Local lab workspace verified: $WORKSPACE_ROOT"
+                '''
+            }
+        }
+
+        stage('Backend Build & Package') {
+            steps {
+                dir("$WORKSPACE_ROOT/backend") {
+                    sh 'mvn -B clean package -DskipTests -Dmaven.test.skip=true'
+                }
+                sh '''
+                    mkdir -p backend/target
+                    cp -u "$WORKSPACE_ROOT/backend/target/"*.jar backend/target/ 2>/dev/null || true
+                    if [ -d "$WORKSPACE_ROOT/backend/target/surefire-reports" ]; then
+                        mkdir -p backend/target/surefire-reports
+                        cp -u "$WORKSPACE_ROOT/backend/target/surefire-reports/"*.xml backend/target/surefire-reports/ 2>/dev/null || true
+                    fi
+                '''
+            }
+            post {
+                always {
+                    junit(
+                        allowEmptyResults: true,
+                        testResults: 'backend/target/surefire-reports/*.xml'
+                    )
+                    archiveArtifacts(
+                        artifacts: 'backend/target/*.jar',
+                        fingerprint: true,
+                        allowEmptyArchive: true
+                    )
+                }
+            }
+        }
+
+        stage('Frontend Install & Build') {
+            steps {
+                dir("$WORKSPACE_ROOT/frontend") {
+                    sh '''
+                        node --version
+                        npm --version
+                        npm run build
+                    '''
+                }
+                sh '''
+                    mkdir -p frontend
+                    rm -rf frontend/dist
+                    cp -r "$WORKSPACE_ROOT/frontend/dist" frontend/
+                '''
+            }
+            post {
+                always {
+                    archiveArtifacts(
+                        artifacts: 'frontend/dist/**',
+                        fingerprint: true,
+                        allowEmptyArchive: true
+                    )
+                }
+            }
+        }
+
+        stage('Build Docker Images') {
+            steps {
+                sh '''
+                    set -eu
+                    docker build -t billing-backend:local "$WORKSPACE_ROOT/backend"
+                    docker build -t billing-frontend:local "$WORKSPACE_ROOT/frontend"
+                '''
+            }
+        }
+
+        stage('Deploy via Docker Compose') {
+            steps {
+                sh '''
+                    set -eu
+                    docker compose -f "$COMPOSE_FILE" up -d
+                    docker compose -f "$COMPOSE_FILE" ps
+                '''
+            }
+        }
+
+        stage('Verify Deployment Health') {
+            steps {
+                sh '''
+                    set -eu
+                    echo "Checking PostgreSQL container health..."
+                    docker inspect --format='{{json .State.Health.Status}}' billing-postgres | grep -q "healthy"
+
+                    echo "Verifying containers are running..."
+                    docker ps --filter "name=billing-" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+                    echo "Verifying HTTP frontend response..."
+                    curl -fsS http://billing-frontend/ > /dev/null
+
+                    echo "Deployment verified successfully!"
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            echo "Billing CI/CD pipeline finished."
+        }
+        success {
+            echo "Local CI/CD build and deployment succeeded!"
+        }
+        failure {
+            echo "Pipeline failed. Review stage logs."
+        }
+    }
+}

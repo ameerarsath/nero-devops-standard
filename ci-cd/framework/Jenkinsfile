@@ -1,0 +1,316 @@
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '30'))
+        skipDefaultCheckout(true)
+    }
+
+    parameters {
+        choice(
+            name: 'APPLICATION',
+            choices: ['hotel-billing', 'sample-node-service', 'sample-python-worker'],
+            description: 'Approved application identifier registered in the central catalog.'
+        )
+        choice(
+            name: 'ENVIRONMENT',
+            choices: ['develop', 'qa', 'prod'],
+            description: 'Target deployment environment.'
+        )
+        choice(
+            name: 'TARGET_PLATFORM',
+            choices: ['floci', 'aws'],
+            description: 'Cloud provider target: Floci local simulation or Real AWS Cloud.'
+        )
+        choice(
+            name: 'ACCOUNT_TOPOLOGY',
+            choices: ['multi_account', 'single_account'],
+            description: 'Account isolation topology: Multi-Account (STS AssumeRole isolation) or Single-Account (ABAC / prefix isolation).'
+        )
+        choice(
+            name: 'ACTION',
+            choices: ['DEPLOY', 'PLAN_ONLY', 'VALIDATE_ONLY', 'BUILD_RELEASE', 'ROLLBACK'],
+            description: 'Execution lifecycle phase: DEPLOY executes full promotion; PLAN_ONLY stops after Terraform plan; VALIDATE_ONLY checks catalog & specs; BUILD_RELEASE produces release manifest.'
+        )
+        string(
+            name: 'RELEASE_ID',
+            defaultValue: '',
+            description: 'Optional immutable Release ID (e.g. rel-20261106173000). Auto-generated if omitted.'
+        )
+    }
+
+    environment {
+        WORKSPACE_ROOT          = '/workspace/billing-system'
+        PYTHONPATH              = '/workspace/billing-system'
+        PYTHONDONTWRITEBYTECODE = '1'
+        PYTHONUNBUFFERED        = '1'
+        TF_IN_AUTOMATION        = 'true'
+        TF_INPUT                = 'false'
+        TARGET_APP              = "${params.APPLICATION}"
+        TARGET_ENV              = "${params.ENVIRONMENT}"
+        TARGET_PLATFORM         = "${params.TARGET_PLATFORM}"
+        TARGET_TOPOLOGY         = "${params.ACCOUNT_TOPOLOGY}"
+        TARGET_ACTION           = "${params.ACTION}"
+        TARGET_RELEASE_ID       = "${params.RELEASE_ID}"
+    }
+
+    stages {
+        stage('Preflight & Catalog Authorization') {
+            steps {
+                sh '''
+                    set -eu
+                    echo "=========================================================================="
+                    echo " ENTERPRISE UNIVERSAL APPLICATION DELIVERY PLATFORM"
+                    echo " Stage: Preflight & Central Catalog Authorization"
+                    echo " Application:      $TARGET_APP"
+                    echo " Environment:      $TARGET_ENV"
+                    echo " Target Platform:  $TARGET_PLATFORM"
+                    echo " Account Topology: $TARGET_TOPOLOGY"
+                    echo " Action:           $TARGET_ACTION"
+                    echo "=========================================================================="
+
+                    cd "$WORKSPACE_ROOT"
+                    python3 -m platform_core.engine.cli check-catalog \
+                        --app "$TARGET_APP" \
+                        --env "$TARGET_ENV" \
+                        --platform "$TARGET_PLATFORM" \
+                        --topology "$TARGET_TOPOLOGY" \
+                        --spec app.spec.yaml
+
+                    python3 -m platform_core.engine.cli validate \
+                        --spec app.spec.yaml \
+                        --workspace "$WORKSPACE_ROOT"
+                '''
+            }
+        }
+
+        stage('Context & Topology Resolution') {
+            steps {
+                sh '''
+                    set -eu
+                    cd "$WORKSPACE_ROOT"
+                    echo "=== [Phase 2] Resolving Cloud Environment & Security Context ==="
+                    python3 -m platform_core.engine.cli resolve \
+                        --app "$TARGET_APP" \
+                        --env "$TARGET_ENV" \
+                        --platform "$TARGET_PLATFORM" \
+                        --topology "$TARGET_TOPOLOGY" \
+                        --format shell > /tmp/platform_${BUILD_NUMBER}.env
+
+                    cat /tmp/platform_${BUILD_NUMBER}.env
+                '''
+            }
+        }
+
+        stage('Immutable Build & Release') {
+            when {
+                expression { return params.ACTION in ['DEPLOY', 'BUILD_RELEASE'] }
+            }
+            steps {
+                sh '''
+                    set -eu
+                    cd "$WORKSPACE_ROOT"
+                    echo "=== [Phase 3] Executing Immutable Build & Release Engine ==="
+                    REL_ARG=""
+                    if [ -n "$TARGET_RELEASE_ID" ]; then
+                        REL_ARG="--release-id $TARGET_RELEASE_ID"
+                    fi
+
+                    python3 -m platform_core.engine.cli build-release \
+                        --app "$TARGET_APP" \
+                        --workspace "$WORKSPACE_ROOT" \
+                        $REL_ARG
+                '''
+                archiveArtifacts artifacts: 'release-manifest.json', fingerprint: true, allowEmptyArchive: true
+            }
+        }
+
+        stage('Infrastructure Planning (Terraform Plan)') {
+            when {
+                expression { return params.ACTION in ['DEPLOY', 'PLAN_ONLY'] }
+            }
+            steps {
+                sh '''
+                    set -eu
+                    cd "$WORKSPACE_ROOT"
+                    echo "=== [Phase 4] Generating Immutable Terraform Execution Plan ==="
+                    python3 -m platform_core.engine.cli tf-plan \
+                        --app "$TARGET_APP" \
+                        --env "$TARGET_ENV" \
+                        --platform "$TARGET_PLATFORM" \
+                        --topology "$TARGET_TOPOLOGY" \
+                        --workspace "$WORKSPACE_ROOT"
+                '''
+            }
+        }
+
+        stage('Production Governance Approval Gates') {
+            when {
+                allOf {
+                    expression { return params.ENVIRONMENT == 'prod' }
+                    expression { return params.ACTION == 'DEPLOY' }
+                }
+            }
+            steps {
+                script {
+                    echo "=========================================================================="
+                    echo " [GOVERNANCE GATE] Production Deployment Authorization Required"
+                    echo " Environment: PRODUCTION"
+                    echo " Application: ${params.APPLICATION}"
+                    echo " Target:      ${params.TARGET_PLATFORM} (${params.ACCOUNT_TOPOLOGY})"
+                    echo "=========================================================================="
+
+                    def requesterUser = "jenkins.user"
+                    try {
+                        def causes = currentBuild.rawBuild.getCauses()
+                        for (cause in causes) {
+                            if (cause.hasProperty('userId') && cause.userId) {
+                                requesterUser = cause.userId
+                                break
+                            }
+                        }
+                    } catch (Exception e) {
+                        requesterUser = "admin"
+                    }
+                    echo ">> Deployment Requester Identity: ${requesterUser}"
+
+                    // Gate 1: QA Technical Sign-off
+                    def qaApproval = null
+                    timeout(time: 30, unit: 'MINUTES') {
+                        qaApproval = input(
+                            id: 'qa-technical-approval',
+                            message: 'Production Gate 1: QA Technical Sign-off',
+                            ok: 'Approve Technical Release',
+                            submitterParameter: 'QA_SUBMITTER',
+                            parameters: [
+                                string(name: 'QA_APPROVER_NAME', defaultValue: 'qa.lead', description: 'QA Sign-off Identity'),
+                                string(name: 'QA_VERIFICATION_REFERENCE', defaultValue: 'QA-SUITE-PASSED', description: 'QA Test Run / Evidence Link'),
+                                string(name: 'QA_COMMENTS', defaultValue: 'Verified in QA. Regression and synthetic health checks passed.', description: 'QA Sign-off notes')
+                            ]
+                        )
+                    }
+                    def qaUser = (qaApproval instanceof Map && qaApproval.QA_SUBMITTER) ? qaApproval.QA_SUBMITTER : (qaApproval instanceof Map ? qaApproval.QA_APPROVER_NAME : 'qa.lead')
+                    echo ">> Gate 1 Approved by QA Lead: ${qaUser}"
+
+                    // Gate 2: Operations / SRE Release Window Approval
+                    def opsApproval = null
+                    timeout(time: 30, unit: 'MINUTES') {
+                        opsApproval = input(
+                            id: 'ops-release-approval',
+                            message: 'Production Gate 2: Operations / SRE Release Window Approval',
+                            ok: 'Authorize Production Deployment',
+                            submitterParameter: 'OPS_SUBMITTER',
+                            parameters: [
+                                string(name: 'OPS_APPROVER_NAME', defaultValue: 'sre.lead', description: 'Operations/SRE Sign-off Identity'),
+                                string(name: 'CHANGE_TICKET_ID', defaultValue: 'CHG-20261106-001', description: 'Approved ITIL Change Ticket ID (Must match CHG-*)'),
+                                string(name: 'OPS_COMMENTS', defaultValue: 'Approved for deployment inside maintenance window.', description: 'Operations notes')
+                            ]
+                        )
+                    }
+                    def opsUser = (opsApproval instanceof Map && opsApproval.OPS_SUBMITTER) ? opsApproval.OPS_SUBMITTER : (opsApproval instanceof Map ? opsApproval.OPS_APPROVER_NAME : 'sre.lead')
+                    def changeTicket = (opsApproval instanceof Map && opsApproval.CHANGE_TICKET_ID) ? opsApproval.CHANGE_TICKET_ID : 'CHG-20261106-001'
+                    echo ">> Gate 2 Approved by Operations / SRE: ${opsUser} (Ticket: ${changeTicket})"
+
+                    // Enforce Two-Person Rule / Separation of Duties
+                    if (qaUser == opsUser) {
+                        error("[GOVERNANCE_VIOLATION] Two-person approval failed: QA Approver and Ops Approver cannot be the same individual (${qaUser}).")
+                    }
+                    if (!changeTicket.startsWith('CHG-')) {
+                        error("[GOVERNANCE_VIOLATION] Invalid Change Ticket ID format: '${changeTicket}'. Must start with 'CHG-'.")
+                    }
+
+                    // Record cryptographically chained governance audit record
+                    sh """
+                        python3 -m platform_core.engine.cli record-governance \
+                            --app "$TARGET_APP" \
+                            --env "$TARGET_ENV" \
+                            --requester "${requesterUser}" \
+                            --qa-approver "${qaUser}" \
+                            --ops-approver "${opsUser}" \
+                            --ticket "${changeTicket}" \
+                            --workspace "$WORKSPACE_ROOT"
+                    """
+                }
+            }
+        }
+
+        stage('Infrastructure Execution (Terraform Apply)') {
+            when {
+                expression { return params.ACTION == 'DEPLOY' }
+            }
+            steps {
+                sh '''
+                    set -eu
+                    cd "$WORKSPACE_ROOT"
+                    echo "=== [Phase 6] Applying Pre-Approved Terraform Plan ==="
+                    python3 -m platform_core.engine.cli tf-apply \
+                        --app "$TARGET_APP" \
+                        --env "$TARGET_ENV" \
+                        --platform "$TARGET_PLATFORM" \
+                        --topology "$TARGET_TOPOLOGY" \
+                        --workspace "$WORKSPACE_ROOT"
+                '''
+            }
+        }
+
+        stage('Workload Deployment (S3 & ECS)') {
+            when {
+                expression { return params.ACTION == 'DEPLOY' }
+            }
+            steps {
+                sh '''
+                    set -eu
+                    cd "$WORKSPACE_ROOT"
+                    echo "=== [Phase 7] Dispatching Application Workloads ==="
+                    python3 -m platform_core.engine.cli deploy-frontend \
+                        --app "$TARGET_APP" \
+                        --env "$TARGET_ENV" \
+                        --platform "$TARGET_PLATFORM" \
+                        --topology "$TARGET_TOPOLOGY" \
+                        --workspace "$WORKSPACE_ROOT"
+                '''
+            }
+        }
+
+        stage('Synthetic Health Verification') {
+            when {
+                expression { return params.ACTION == 'DEPLOY' }
+            }
+            steps {
+                sh '''
+                    set -eu
+                    cd "$WORKSPACE_ROOT"
+                    echo "=== [Phase 8] Executing Automated Synthetic Health Checks ==="
+                    python3 -m platform_core.engine.cli verify \
+                        --app "$TARGET_APP" \
+                        --env "$TARGET_ENV" \
+                        --platform "$TARGET_PLATFORM" \
+                        --topology "$TARGET_TOPOLOGY" \
+                        --workspace "$WORKSPACE_ROOT"
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            sh '''
+                rm -f /tmp/platform_${BUILD_NUMBER}.env || true
+                cp -f "$WORKSPACE_ROOT/release-manifest.json" . 2>/dev/null || true
+                cp -f "$WORKSPACE_ROOT"/infra-outputs.*.json . 2>/dev/null || true
+                mkdir -p platform_core/audit
+                cp -f "$WORKSPACE_ROOT/platform_core/audit/audit_log.jsonl" platform_core/audit/ 2>/dev/null || true
+            '''
+            archiveArtifacts artifacts: 'release-manifest.json, infra-outputs.*.json, platform_core/audit/audit_log.jsonl', fingerprint: false, allowEmptyArchive: true
+            echo "Universal Pipeline execution completed for ${params.APPLICATION} on ${params.ENVIRONMENT} (${params.TARGET_PLATFORM})."
+        }
+        success {
+            echo "Deployment SUCCESS: Application '${params.APPLICATION}' verified in '${params.ENVIRONMENT}'."
+        }
+        failure {
+            echo "Deployment FAILED: Failure detected in ${currentBuild.currentResult}. Downstream promotion blocked."
+        }
+    }
+}

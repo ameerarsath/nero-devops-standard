@@ -1,0 +1,36 @@
+
+services:
+  jenkins:
+    build:
+      context: ./jenkins
+      dockerfile: Dockerfile
+
+    image: billing-jenkins:local
+    container_name: jenkins
+    restart: unless-stopped
+
+    ports:
+      - "8080:8080"
+    group_add:
+      - "0"
+
+    environment:
+      CASC_JENKINS_CONFIG: /usr/share/jenkins/ref/casc/jenkins.yaml
+
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../../:/workspace/billing-system
+
+    networks:
+      - floci-network
+
+volumes:
+  jenkins_home:
+    external: true
+    name: jenkins-docker_jenkins_home
+
+networks:
+  floci-network:
+    external: true
+    name: terraform_default

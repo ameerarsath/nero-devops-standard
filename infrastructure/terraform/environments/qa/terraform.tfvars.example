@@ -1,0 +1,14 @@
+# Floci Local Simulation Variables for QA
+aws_region     = "us-east-1"
+floci_endpoint = "http://localhost:4566" # Use http://floci:4566 when executing inside Jenkins
+name_prefix    = "billing-qa"
+environment    = "qa"
+
+db_instance_class    = "db.t3.small"
+db_allocated_storage = 20
+db_name              = "hotel_billing_qa"
+db_username          = "postgres"
+db_password          = "postgres_qa"
+
+backend_image = "billing-backend:qa"
+ecs_host_port = 8087

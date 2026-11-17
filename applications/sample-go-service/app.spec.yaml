@@ -1,0 +1,49 @@
+apiVersion: platform.nero/v1
+kind: Application
+
+metadata:
+  name: sample-go-service
+  version: "1.0.0"
+  id: sample-go-service
+  description: "Enterprise Reference High-Performance Microservice - Go 1.27.3 API"
+  owner: "team-performance@enterprise.com"
+  securityTier: "tier-2-standard"
+  labels:
+    environment_profile: "microservice"
+    architecture: "hexagonal"
+
+spec:
+  components:
+    - name: api
+      type: container-service
+      source:
+        context: "applications/sample-go-service"
+        dockerfile: "Dockerfile"
+      build:
+        adapter: "go"
+        target_stage: "runtime"
+      runtime:
+        name: "go"
+        version: "1.27.3"
+        base_image: "gcr.io/distroless/static-debian12:nonroot"
+        lockfile: "go.mod"
+        port: 8080
+        cpu_units: 256
+        memory_mb: 256
+        health_check:
+          path: "/health"
+          interval_seconds: 15
+          timeout_seconds: 5
+          healthy_threshold: 2
+      deployment:
+        adapter: "ecs"
+        desired_count: 1
+        strategy: "rolling"
+
+  dependencies: []
+
+  secrets:
+    schema:
+      - name: "api.key"
+        description: "Internal microservice API key"
+        required: false

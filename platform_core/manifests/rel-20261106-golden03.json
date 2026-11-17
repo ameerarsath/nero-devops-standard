@@ -1,0 +1,62 @@
+{
+  "schema_version": "1.0.0",
+  "release_id": "rel-20261106-golden03",
+  "application": "hotel-billing",
+  "source": {
+    "repository": "https://github.com/ameerarsath/billing-system.git",
+    "commit_sha": "3bf604266b4f233c3899d0e315a0538812542b04"
+  },
+  "platform_version": "1.0.0",
+  "spec_version": "1.0.0",
+  "components": {
+    "backend": {
+      "image": "backend:rel-20261106-golden03",
+      "digest": "7ddc3df99583"
+    },
+    "frontend": {
+      "artifact": "frontend-dist-rel-20261106-golden03.tar.gz",
+      "sha256": "558320c8ad0dae8e4279793eab466bf8e261d85a6e756636b6a8592a25dcf08f"
+    }
+  },
+  "sbom": {
+    "format": "CycloneDX",
+    "reference": "sbom/hotel-billing-rel-20261106-golden03.json"
+  },
+  "provenance": {
+    "reference": "provenance/hotel-billing-rel-20261106-golden03.json"
+  },
+  "build": {
+    "timestamp": "2026-11-06T16:09:19.419749+00:00",
+    "builder_identity": "jenkins-runner@trusted-agent"
+  },
+  "raw_components": {
+    "backend": {
+      "component_name": "backend",
+      "artifact_type": "oci_container_image",
+      "image_tag": null,
+      "image_digest": null,
+      "artifact_path": "backend:rel-20261106-golden03",
+      "checksum_sha256": "7ddc3df99583",
+      "sbom_path": null,
+      "build_metadata": {
+        "adapter": "build.dockerfile",
+        "image_tag": "backend:rel-20261106-golden03",
+        "image_id": "7ddc3df99583"
+      }
+    },
+    "frontend": {
+      "component_name": "frontend",
+      "artifact_type": "static_tarball",
+      "image_tag": null,
+      "image_digest": null,
+      "artifact_path": "D:\\project\\billing-system-master\\billing-system-master\\frontend-dist-rel-20261106-golden03.tar.gz",
+      "checksum_sha256": "558320c8ad0dae8e4279793eab466bf8e261d85a6e756636b6a8592a25dcf08f",
+      "sbom_path": null,
+      "build_metadata": {
+        "adapter": "build.node-frontend",
+        "dist_dir": "D:\\project\\billing-system-master\\billing-system-master\\frontend\\dist",
+        "file_count": 4
+      }
+    }
+  }
+}

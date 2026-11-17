@@ -1,0 +1,48 @@
+{
+  "schema_version": "1.0.0",
+  "release_id": "rel-node-20261106-01",
+  "application": "sample-node-service",
+  "source": {
+    "repository": "https://github.com/ameerarsath/billing-system.git",
+    "commit_sha": "3bf604266b4f233c3899d0e315a0538812542b04"
+  },
+  "platform_version": "1.0.0",
+  "spec_version": "1.0.0",
+  "components": {
+    "backend": {
+      "image": "backend:rel-node-20261106-01",
+      "digest": ""
+    },
+    "frontend": {
+      "artifact": "frontend-dist-rel-node-20261106-01.tar.gz",
+      "sha256": ""
+    }
+  },
+  "sbom": {
+    "format": "CycloneDX",
+    "reference": "sbom/sample-node-service-rel-node-20261106-01.json"
+  },
+  "provenance": {
+    "reference": "provenance/sample-node-service-rel-node-20261106-01.json"
+  },
+  "build": {
+    "timestamp": "2026-11-06T18:09:29.046510+00:00",
+    "builder_identity": "jenkins-runner@trusted-agent"
+  },
+  "raw_components": {
+    "api": {
+      "component_name": "api",
+      "artifact_type": "oci_container_image",
+      "image_tag": null,
+      "image_digest": null,
+      "artifact_path": "api:rel-node-20261106-01",
+      "checksum_sha256": "sha256:7ddc3df995835ac89bc1c04ca1c29d325b20dec33c6a8941a3d814adafb4ad09",
+      "sbom_path": null,
+      "build_metadata": {
+        "adapter": "build.dockerfile",
+        "image_tag": "api:rel-node-20261106-01",
+        "image_id": "sha256:7ddc3df995835ac89bc1c04ca1c29d325b20dec33c6a8941a3d814adafb4ad09"
+      }
+    }
+  }
+}

@@ -1,0 +1,134 @@
+# ==============================================================================
+# ENTERPRISE UNIVERSAL APPLICATION DELIVERY PLATFORM
+# Central Application Catalog & Trust Registry (NERO Phase A2 Baseline)
+# ==============================================================================
+version: "2.0"
+
+applications:
+  - id: "hotel-billing"
+    display_name: "Hotel Billing & Kitchen Display System"
+    trusted_repository: "https://github.com/ameerarsath/billing-system.git"
+    spec_path: "app.spec.yaml"
+    allowed_branches:
+      - "main"
+      - "master"
+      - "devops/jenkins-floci-local-lab"
+      - "release/*"
+    allowed_environments:
+      - "develop"
+      - "qa"
+      - "prod"
+    allowed_platforms:
+      - "floci"
+      - "floci-local"
+      - "aws"
+    allowed_topologies:
+      - "multi_account"
+      - "single_account"
+    permitted_build_adapters:
+      - "dockerfile"
+      - "java-maven"
+      - "node"
+    permitted_deployment_adapters:
+      - "ecs"
+      - "s3-static"
+    security_tier: "tier-1-business-critical"
+    allocated_ports:
+      develop: 8085
+      qa: 8087
+      prod: 8089
+
+  - id: "sample-node-service"
+    display_name: "Reference Microservice - Node.js Express API"
+    trusted_repository: "https://github.com/enterprise/sample-node-service.git"
+    spec_path: "app.spec.yaml"
+    allowed_branches:
+      - "main"
+      - "release/*"
+      - "devops/*"
+      - "devops/jenkins-floci-local-lab"
+    allowed_environments:
+      - "develop"
+      - "qa"
+      - "prod"
+    allowed_platforms:
+      - "floci"
+      - "floci-local"
+      - "aws"
+    allowed_topologies:
+      - "multi_account"
+      - "single_account"
+    permitted_build_adapters:
+      - "node"
+      - "dockerfile"
+    permitted_deployment_adapters:
+      - "ecs"
+    security_tier: "tier-2-standard"
+    allocated_ports:
+      develop: 8091
+      qa: 8092
+      prod: 8093
+
+  - id: "sample-python-worker"
+    display_name: "Reference Background Worker - Python Queue Consumer"
+    trusted_repository: "https://github.com/enterprise/sample-python-worker.git"
+    spec_path: "app.spec.yaml"
+    allowed_branches:
+      - "main"
+      - "release/*"
+      - "devops/*"
+      - "devops/jenkins-floci-local-lab"
+    allowed_environments:
+      - "develop"
+      - "qa"
+      - "prod"
+    allowed_platforms:
+      - "floci"
+      - "floci-local"
+      - "aws"
+    allowed_topologies:
+      - "multi_account"
+      - "single_account"
+    permitted_build_adapters:
+      - "python"
+      - "dockerfile"
+    permitted_deployment_adapters:
+      - "ecs"
+      - "ecs-worker"
+    security_tier: "tier-2-standard"
+    allocated_ports:
+      develop: 8095
+      qa: 8096
+      prod: 8097
+
+  - id: "sample-go-service"
+    display_name: "Reference Microservice - Go 1.27.3 Gin API"
+    trusted_repository: "https://github.com/enterprise/sample-go-service.git"
+    spec_path: "app.spec.yaml"
+    allowed_branches:
+      - "main"
+      - "release/*"
+      - "devops/*"
+      - "devops/jenkins-floci-local-lab"
+    allowed_environments:
+      - "develop"
+      - "qa"
+      - "prod"
+    allowed_platforms:
+      - "floci"
+      - "floci-local"
+      - "aws"
+    allowed_topologies:
+      - "multi_account"
+      - "single_account"
+    permitted_build_adapters:
+      - "go"
+      - "dockerfile"
+    permitted_deployment_adapters:
+      - "ecs"
+    security_tier: "tier-2-standard"
+    allocated_ports:
+      develop: 8101
+      qa: 8102
+      prod: 8103
+

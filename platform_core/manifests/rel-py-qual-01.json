@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0.0",
+  "release_id": "rel-py-qual-01",
+  "application": "sample-python-worker",
+  "source": {
+    "repository": "https://github.com/ameerarsath/billing-system.git",
+    "commit_sha": "3bf604266b4f233c3899d0e315a0538812542b04"
+  },
+  "platform_version": "1.2.0-phase4",
+  "spec_version": "1.0.0",
+  "components": {
+    "worker": {
+      "image": "worker:rel-py-qual-01",
+      "digest": "sha256:f518e3aa4088db0b265e68978d0ee555111d32483ef91452380f1f0933c72219"
+    }
+  },
+  "sbom": {
+    "format": "CycloneDX",
+    "reference": "sbom/sample-python-worker-rel-py-qual-01.json"
+  },
+  "provenance": {
+    "reference": "provenance/sample-python-worker-rel-py-qual-01.json"
+  },
+  "build": {
+    "timestamp": "2026-11-07T16:15:00.000000+00:00",
+    "builder_identity": "jenkins-runner@trusted-agent"
+  },
+  "raw_components": {
+    "worker": {
+      "component_name": "worker",
+      "artifact_type": "oci_container_image",
+      "image_tag": "worker:rel-py-qual-01",
+      "image_digest": "sha256:f518e3aa4088db0b265e68978d0ee555111d32483ef91452380f1f0933c72219",
+      "artifact_path": "worker:rel-py-qual-01",
+      "checksum_sha256": "sha256:f518e3aa4088db0b265e68978d0ee555111d32483ef91452380f1f0933c72219",
+      "build_metadata": {
+        "adapter": "build.dockerfile",
+        "runtime": "python:3.12",
+        "lockfile": "requirements.txt"
+      }
+    }
+  }
+}

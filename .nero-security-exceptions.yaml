@@ -1,0 +1,19 @@
+version: "1.0.0"
+description: "Authorized DevSecOps Security Exceptions for NERO Platform Foundation"
+exceptions:
+  - id: "EXC-2026-001"
+    finding_id: "CVE-2022-23529"
+    target: "backend/pom.xml"
+    justification: "Known jjwt / jsonwebtoken transitive CVE; token validation handled internally in custom JwtUtil; planned upgrade in Phase A4"
+    approver: "security-lead@enterprise.com"
+    created_at: "2026-11-08T00:00:00Z"
+    expires_at: "2027-02-08T00:00:00Z"
+    revoked: false
+  - id: "EXC-2026-002"
+    finding_id: "nero-secret-high-entropy-password"
+    target: "infrastructure/terraform/environments/local/main.tf"
+    justification: "Hardcoded default local developer Postgres password for air-gapped Floci simulation only"
+    approver: "security-lead@enterprise.com"
+    created_at: "2026-11-08T00:00:00Z"
+    expires_at: "2027-02-08T00:00:00Z"
+    revoked: false

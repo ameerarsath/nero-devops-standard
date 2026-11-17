@@ -1,0 +1,367 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<flow-definition plugin="workflow-job@1622.vc41c189cb_e5f">
+  <actions>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@2.2293.v6e7193cec599"/>
+  </actions>
+  <description>Enterprise Universal Application Delivery Platform - Golden Path Multi-Cloud &amp; Multi-Account Deployment Engine</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <jenkins.model.BuildDiscarderProperty>
+      <strategy class="hudson.tasks.LogRotator">
+        <daysToKeep>-1</daysToKeep>
+        <numToKeep>30</numToKeep>
+        <artifactDaysToKeep>-1</artifactDaysToKeep>
+        <artifactNumToKeep>-1</artifactNumToKeep>
+        <removeLastBuild>false</removeLastBuild>
+      </strategy>
+    </jenkins.model.BuildDiscarderProperty>
+    <org.jenkinsci.plugins.workflow.job.properties.DisableConcurrentBuildsJobProperty>
+      <abortPrevious>false</abortPrevious>
+    </org.jenkinsci.plugins.workflow.job.properties.DisableConcurrentBuildsJobProperty>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>APPLICATION</name>
+          <description>Approved application identifier registered in the central catalog.</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>hotel-billing</string>
+              <string>sample-node-service</string>
+              <string>sample-python-worker</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>ENVIRONMENT</name>
+          <description>Target deployment environment.</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>develop</string>
+              <string>qa</string>
+              <string>prod</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>TARGET_PLATFORM</name>
+          <description>Cloud provider target: Floci local simulation (floci-local / floci) or Real AWS Cloud (aws).</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>floci-local</string>
+              <string>floci</string>
+              <string>aws</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>ACCOUNT_TOPOLOGY</name>
+          <description>Account isolation topology: Multi-Account (STS AssumeRole isolation) or Single-Account (ABAC / prefix isolation).</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>multi_account</string>
+              <string>single_account</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>ACTION</name>
+          <description>Execution lifecycle phase: DEPLOY executes full promotion; PLAN_ONLY stops after Terraform plan; VALIDATE_ONLY checks catalog &amp; specs; BUILD_RELEASE produces release manifest.</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>DEPLOY</string>
+              <string>PLAN_ONLY</string>
+              <string>VALIDATE_ONLY</string>
+              <string>BUILD_RELEASE</string>
+              <string>ROLLBACK</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>RELEASE_ID</name>
+          <description>Optional immutable Release ID (e.g. rel-20261106173000). Auto-generated if omitted.</description>
+          <defaultValue></defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@4403.v471713a_cea_19">
+    <script>pipeline {
+    agent any
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: &apos;30&apos;))
+        skipDefaultCheckout(true)
+    }
+
+    parameters {
+        choice(
+            name: &apos;APPLICATION&apos;,
+            choices: [&apos;hotel-billing&apos;, &apos;sample-node-service&apos;, &apos;sample-python-worker&apos;],
+            description: &apos;Approved application identifier registered in the central catalog.&apos;
+        )
+        choice(
+            name: &apos;ENVIRONMENT&apos;,
+            choices: [&apos;develop&apos;, &apos;qa&apos;, &apos;prod&apos;],
+            description: &apos;Target deployment environment.&apos;
+        )
+        choice(
+            name: &apos;TARGET_PLATFORM&apos;,
+            choices: [&apos;floci&apos;, &apos;aws&apos;],
+            description: &apos;Cloud provider target: Floci local simulation or Real AWS Cloud.&apos;
+        )
+        choice(
+            name: &apos;ACCOUNT_TOPOLOGY&apos;,
+            choices: [&apos;multi_account&apos;, &apos;single_account&apos;],
+            description: &apos;Account isolation topology: Multi-Account (STS AssumeRole isolation) or Single-Account (ABAC / prefix isolation).&apos;
+        )
+        choice(
+            name: &apos;ACTION&apos;,
+            choices: [&apos;DEPLOY&apos;, &apos;PLAN_ONLY&apos;, &apos;VALIDATE_ONLY&apos;, &apos;BUILD_RELEASE&apos;, &apos;ROLLBACK&apos;],
+            description: &apos;Execution lifecycle phase: DEPLOY executes full promotion; PLAN_ONLY stops after Terraform plan; VALIDATE_ONLY checks catalog &amp; specs; BUILD_RELEASE produces release manifest.&apos;
+        )
+        string(
+            name: &apos;RELEASE_ID&apos;,
+            defaultValue: &apos;&apos;,
+            description: &apos;Optional immutable Release ID (e.g. rel-20261106173000). Auto-generated if omitted.&apos;
+        )
+    }
+
+    environment {
+        WORKSPACE_ROOT          = &apos;/workspace/billing-system&apos;
+        PYTHONPATH              = &apos;/workspace/billing-system&apos;
+        PYTHONDONTWRITEBYTECODE = &apos;1&apos;
+        PYTHONUNBUFFERED        = &apos;1&apos;
+        TF_IN_AUTOMATION        = &apos;true&apos;
+        TF_INPUT                = &apos;false&apos;
+        TARGET_APP              = &quot;${params.APPLICATION}&quot;
+        TARGET_ENV              = &quot;${params.ENVIRONMENT}&quot;
+        TARGET_PLATFORM         = &quot;${params.TARGET_PLATFORM}&quot;
+        TARGET_TOPOLOGY         = &quot;${params.ACCOUNT_TOPOLOGY}&quot;
+        TARGET_ACTION           = &quot;${params.ACTION}&quot;
+        TARGET_RELEASE_ID       = &quot;${params.RELEASE_ID}&quot;
+    }
+
+    stages {
+        stage(&apos;Preflight &amp; Catalog Authorization&apos;) {
+            steps {
+                sh &apos;&apos;&apos;
+                    set -eu
+                    echo &quot;==========================================================================&quot;
+                    echo &quot; ENTERPRISE UNIVERSAL APPLICATION DELIVERY PLATFORM&quot;
+                    echo &quot; Stage: Preflight &amp; Central Catalog Authorization&quot;
+                    echo &quot; Application:      $TARGET_APP&quot;
+                    echo &quot; Environment:      $TARGET_ENV&quot;
+                    echo &quot; Target Platform:  $TARGET_PLATFORM&quot;
+                    echo &quot; Account Topology: $TARGET_TOPOLOGY&quot;
+                    echo &quot; Action:           $TARGET_ACTION&quot;
+                    echo &quot;==========================================================================&quot;
+
+                    cd &quot;$WORKSPACE_ROOT&quot;
+                    python3 -m platform_core.engine.cli check-catalog \
+                        --app &quot;$TARGET_APP&quot; \
+                        --env &quot;$TARGET_ENV&quot; \
+                        --platform &quot;$TARGET_PLATFORM&quot; \
+                        --topology &quot;$TARGET_TOPOLOGY&quot; \
+                        --spec app.spec.yaml
+
+                    python3 -m platform_core.engine.cli validate \
+                        --spec app.spec.yaml \
+                        --workspace &quot;$WORKSPACE_ROOT&quot;
+                &apos;&apos;&apos;
+            }
+        }
+
+        stage(&apos;Context &amp; Topology Resolution&apos;) {
+            steps {
+                sh &apos;&apos;&apos;
+                    set -eu
+                    cd &quot;$WORKSPACE_ROOT&quot;
+                    echo &quot;=== [Phase 2] Resolving Cloud Environment &amp; Security Context ===&quot;
+                    python3 -m platform_core.engine.cli resolve \
+                        --app &quot;$TARGET_APP&quot; \
+                        --env &quot;$TARGET_ENV&quot; \
+                        --platform &quot;$TARGET_PLATFORM&quot; \
+                        --topology &quot;$TARGET_TOPOLOGY&quot; \
+                        --format shell &gt; /tmp/platform_${BUILD_NUMBER}.env
+
+                    cat /tmp/platform_${BUILD_NUMBER}.env
+                &apos;&apos;&apos;
+            }
+        }
+
+        stage(&apos;Immutable Build &amp; Release&apos;) {
+            when {
+                expression { return params.ACTION in [&apos;DEPLOY&apos;, &apos;BUILD_RELEASE&apos;] }
+            }
+            steps {
+                sh &apos;&apos;&apos;
+                    set -eu
+                    cd &quot;$WORKSPACE_ROOT&quot;
+                    echo &quot;=== [Phase 3] Executing Immutable Build &amp; Release Engine ===&quot;
+                    REL_ARG=&quot;&quot;
+                    if [ -n &quot;$TARGET_RELEASE_ID&quot; ]; then
+                        REL_ARG=&quot;--release-id $TARGET_RELEASE_ID&quot;
+                    fi
+
+                    python3 -m platform_core.engine.cli build-release \
+                        --app &quot;$TARGET_APP&quot; \
+                        --workspace &quot;$WORKSPACE_ROOT&quot; \
+                        $REL_ARG
+                &apos;&apos;&apos;
+                archiveArtifacts artifacts: &apos;release-manifest.json&apos;, fingerprint: true, allowEmptyArchive: true
+            }
+        }
+
+        stage(&apos;Infrastructure Planning (Terraform Plan)&apos;) {
+            when {
+                expression { return params.ACTION in [&apos;DEPLOY&apos;, &apos;PLAN_ONLY&apos;] }
+            }
+            steps {
+                sh &apos;&apos;&apos;
+                    set -eu
+                    cd &quot;$WORKSPACE_ROOT&quot;
+                    echo &quot;=== [Phase 4] Generating Immutable Terraform Execution Plan ===&quot;
+                    python3 -m platform_core.engine.cli tf-plan \
+                        --app &quot;$TARGET_APP&quot; \
+                        --env &quot;$TARGET_ENV&quot; \
+                        --platform &quot;$TARGET_PLATFORM&quot; \
+                        --topology &quot;$TARGET_TOPOLOGY&quot; \
+                        --workspace &quot;$WORKSPACE_ROOT&quot;
+                &apos;&apos;&apos;
+            }
+        }
+
+        stage(&apos;Production Governance Approval Gates&apos;) {
+            when {
+                allOf {
+                    expression { return params.ENVIRONMENT == &apos;prod&apos; }
+                    expression { return params.ACTION == &apos;DEPLOY&apos; }
+                }
+            }
+            steps {
+                script {
+                    echo &quot;==========================================================================&quot;
+                    echo &quot; [GOVERNANCE GATE] Production Deployment Authorization Required&quot;
+                    echo &quot; Environment: PRODUCTION&quot;
+                    echo &quot; Application: ${params.APPLICATION}&quot;
+                    echo &quot; Target:      ${params.TARGET_PLATFORM} (${params.ACCOUNT_TOPOLOGY})&quot;
+                    echo &quot;==========================================================================&quot;
+
+                    // Gate 1: QA Technical Sign-off
+                    timeout(time: 30, unit: &apos;MINUTES&apos;) {
+                        def qaApproval = input(
+                            id: &apos;qa-technical-approval&apos;,
+                            message: &apos;Production Gate 1: QA Technical Sign-off&apos;,
+                            ok: &apos;Approve Technical Release&apos;,
+                            parameters: [
+                                string(name: &apos;QA_VERIFICATION_REFERENCE&apos;, defaultValue: &apos;QA-SUITE-PASSED&apos;, description: &apos;QA Test Run / Evidence Link&apos;),
+                                string(name: &apos;QA_COMMENTS&apos;, defaultValue: &apos;Verified in QA. Regression and synthetic health checks passed.&apos;, description: &apos;QA Sign-off notes&apos;)
+                            ]
+                        )
+                        echo &quot;&gt;&gt; Gate 1 Approved by QA: ${qaApproval}&quot;
+                    }
+
+                    // Gate 2: Operations / SRE Release Window Approval
+                    timeout(time: 30, unit: &apos;MINUTES&apos;) {
+                        def opsApproval = input(
+                            id: &apos;ops-release-approval&apos;,
+                            message: &apos;Production Gate 2: Operations / SRE Release Window Approval&apos;,
+                            ok: &apos;Authorize Production Deployment&apos;,
+                            parameters: [
+                                string(name: &apos;CHANGE_TICKET_ID&apos;, defaultValue: &apos;CHG-20261106-001&apos;, description: &apos;Approved ITIL Change Ticket ID&apos;),
+                                string(name: &apos;OPS_COMMENTS&apos;, defaultValue: &apos;Approved for deployment inside maintenance window.&apos;, description: &apos;Operations notes&apos;)
+                            ]
+                        )
+                        echo &quot;&gt;&gt; Gate 2 Approved by Operations / SRE: ${opsApproval}&quot;
+                    }
+                }
+            }
+        }
+
+        stage(&apos;Infrastructure Execution (Terraform Apply)&apos;) {
+            when {
+                expression { return params.ACTION == &apos;DEPLOY&apos; }
+            }
+            steps {
+                sh &apos;&apos;&apos;
+                    set -eu
+                    cd &quot;$WORKSPACE_ROOT&quot;
+                    echo &quot;=== [Phase 6] Applying Pre-Approved Terraform Plan ===&quot;
+                    python3 -m platform_core.engine.cli tf-apply \
+                        --app &quot;$TARGET_APP&quot; \
+                        --env &quot;$TARGET_ENV&quot; \
+                        --platform &quot;$TARGET_PLATFORM&quot; \
+                        --topology &quot;$TARGET_TOPOLOGY&quot; \
+                        --workspace &quot;$WORKSPACE_ROOT&quot;
+                &apos;&apos;&apos;
+            }
+        }
+
+        stage(&apos;Workload Deployment (S3 &amp; ECS)&apos;) {
+            when {
+                expression { return params.ACTION == &apos;DEPLOY&apos; }
+            }
+            steps {
+                sh &apos;&apos;&apos;
+                    set -eu
+                    cd &quot;$WORKSPACE_ROOT&quot;
+                    echo &quot;=== [Phase 7] Dispatching Application Workloads ===&quot;
+                    python3 -m platform_core.engine.cli deploy-frontend \
+                        --app &quot;$TARGET_APP&quot; \
+                        --env &quot;$TARGET_ENV&quot; \
+                        --platform &quot;$TARGET_PLATFORM&quot; \
+                        --topology &quot;$TARGET_TOPOLOGY&quot; \
+                        --workspace &quot;$WORKSPACE_ROOT&quot;
+                &apos;&apos;&apos;
+            }
+        }
+
+        stage(&apos;Synthetic Health Verification&apos;) {
+            when {
+                expression { return params.ACTION == &apos;DEPLOY&apos; }
+            }
+            steps {
+                sh &apos;&apos;&apos;
+                    set -eu
+                    cd &quot;$WORKSPACE_ROOT&quot;
+                    echo &quot;=== [Phase 8] Executing Automated Synthetic Health Checks ===&quot;
+                    python3 -m platform_core.engine.cli verify \
+                        --app &quot;$TARGET_APP&quot; \
+                        --env &quot;$TARGET_ENV&quot; \
+                        --platform &quot;$TARGET_PLATFORM&quot; \
+                        --topology &quot;$TARGET_TOPOLOGY&quot; \
+                        --workspace &quot;$WORKSPACE_ROOT&quot;
+                &apos;&apos;&apos;
+            }
+        }
+    }
+
+    post {
+        always {
+            sh &apos;&apos;&apos;
+                rm -f /tmp/platform_${BUILD_NUMBER}.env || true
+                cp -f &quot;$WORKSPACE_ROOT/release-manifest.json&quot; . 2&gt;/dev/null || true
+                cp -f &quot;$WORKSPACE_ROOT&quot;/infra-outputs.*.json . 2&gt;/dev/null || true
+                mkdir -p platform_core/audit
+                cp -f &quot;$WORKSPACE_ROOT/platform_core/audit/audit_log.jsonl&quot; platform_core/audit/ 2&gt;/dev/null || true
+            &apos;&apos;&apos;
+            archiveArtifacts artifacts: &apos;release-manifest.json, infra-outputs.*.json, platform_core/audit/audit_log.jsonl&apos;, fingerprint: false, allowEmptyArchive: true
+            echo &quot;Universal Pipeline execution completed for ${params.APPLICATION} on ${params.ENVIRONMENT} (${params.TARGET_PLATFORM}).&quot;
+        }
+        success {
+            echo &quot;Deployment SUCCESS: Application &apos;${params.APPLICATION}&apos; verified in &apos;${params.ENVIRONMENT}&apos;.&quot;
+        }
+        failure {
+            echo &quot;Deployment FAILED: Failure detected in ${currentBuild.currentResult}. Downstream promotion blocked.&quot;
+        }
+    }
+}
+</script>
+    <sandbox>true</sandbox>
+  </definition>
+  <triggers/>
+  <disabled>false</disabled>
+</flow-definition>

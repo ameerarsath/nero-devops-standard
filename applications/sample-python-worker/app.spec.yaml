@@ -1,0 +1,49 @@
+apiVersion: platform.enterprise.com/v1
+kind: Application
+
+metadata:
+  name: sample-python-worker
+  version: "1.0.0"
+  description: "Enterprise Reference Background Worker - Python Queue Consumer"
+  owner: "team-async-jobs@enterprise.com"
+
+spec:
+  components:
+    - name: worker
+      type: container-service
+      source:
+        context: "applications/sample-python-worker"
+        dockerfile: "Dockerfile"
+      build:
+        adapter: "dockerfile"
+        target_stage: "runtime"
+      runtime:
+        name: "python"
+        version: "3.12"
+        base_image: "python:3.12-slim"
+        lockfile: "requirements.txt"
+        port: 8000
+        cpu_units: 256
+        memory_mb: 512
+        health_check:
+          path: "/health"
+          interval_seconds: 15
+          timeout_seconds: 5
+          healthy_threshold: 2
+      deployment:
+        adapter: "ecs"
+        desired_count: 1
+
+  dependencies:
+    - name: jobs-queue
+      type: "sqs"
+    - name: database
+      type: "rds-postgres"
+      engine_version: "15"
+      allocated_storage_gb: 10
+
+  secrets:
+    schema:
+      - name: "database.password"
+        description: "PostgreSQL master password"
+        required: true

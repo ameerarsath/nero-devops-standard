@@ -1,0 +1,66 @@
+apiVersion: platform.enterprise.com/v1
+kind: Application
+
+metadata:
+  name: hotel-billing
+  version: "1.0.0"
+  description: "Enterprise Hotel Restaurant Billing & Kitchen Display Microservice"
+  owner: "team-hospitality@enterprise.com"
+
+spec:
+  components:
+    - name: backend
+      type: container-service
+      source:
+        context: "backend"
+        dockerfile: "Dockerfile"
+      build:
+        adapter: "dockerfile"
+        target_stage: "runtime"
+      runtime:
+        port: 8082
+        cpu_units: 256
+        memory_mb: 512
+        health_check:
+          path: "/actuator/health"
+          interval_seconds: 15
+          timeout_seconds: 5
+          healthy_threshold: 2
+      deployment:
+        adapter: "ecs"
+        desired_count: 1
+
+    - name: frontend
+      type: static-site
+      source:
+        context: "frontend"
+        dockerfile: "Dockerfile"
+      build:
+        adapter: "node"
+        dist_dir: "dist"
+      deployment:
+        adapter: "s3-static"
+        spa_routing: true
+
+  dependencies:
+    - name: database
+      type: "rds-postgres"
+      engine_version: "15"
+      allocated_storage_gb: 20
+    - name: jobs-queue
+      type: "sqs"
+    - name: items-table
+      type: "dynamodb"
+      hash_key: "id"
+
+  secrets:
+    schema:
+      - name: "spring.datasource.password"
+        description: "PostgreSQL master password for tenant database"
+        required: true
+      - name: "jwt.secret"
+        description: "HMAC SHA-256 secret for signing JWT security tokens"
+        required: true
+      - name: "jwt.expiration"
+        description: "JWT token expiration duration in milliseconds"
+        required: true

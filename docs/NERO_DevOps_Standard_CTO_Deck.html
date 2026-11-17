@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NERO Enterprise DevOps Standard — CTO Executive Briefing</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0A1128;
+      --bg-light: #F8FAFC;
+      --card-bg: #FFFFFF;
+      --card-border: #E2E8F0;
+      --text-main: #0F172A;
+      --text-muted: #64748B;
+      --text-light: #F8FAFC;
+      --accent-blue: #2563EB;
+      --accent-cyan: #06B6D4;
+      --accent-teal: #0D9488;
+      --accent-gold: #D97706;
+      --accent-green: #16A34A;
+      --accent-red: #DC2626;
+      --badge-bg: #EEF2FF;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.08), 0 2px 4px -1px rgba(0,0,0,0.04);
+      --shadow-xl: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0f172a;
+      color: var(--text-main);
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Presentation Header & Control Bar */
+    .top-bar {
+      height: 52px;
+      background: rgba(10, 17, 40, 0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      z-index: 100;
+      color: var(--text-light);
+    }
+    .top-title {
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .top-title span.badge {
+      background: var(--accent-blue);
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .btn {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: white;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    .btn:hover { background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.3); }
+    .btn.active { background: var(--accent-blue); border-color: var(--accent-blue); }
+    .slide-counter { font-size: 13px; font-weight: 600; color: #94A3B8; min-width: 70px; text-align: center; }
+
+    /* Slide Stage */
+    .stage {
+      flex: 1;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0f172a;
+      padding: 20px;
+    }
+
+    .slide {
+      width: 100%;
+      max-width: 1320px;
+      height: 740px;
+      background: var(--bg-light);
+      border-radius: 14px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+      position: absolute;
+      opacity: 0;
+      visibility: hidden;
+      transform: scale(0.98);
+      transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+      padding: 40px 50px;
+      overflow: hidden;
+    }
+    .slide.active {
+      opacity: 1;
+      visibility: visible;
+      transform: scale(1);
+      z-index: 10;
+    }
+    .slide.dark-theme {
+      background: var(--bg-dark);
+      color: var(--text-light);
+    }
+
+    /* Slide Typography & Header */
+    .slide-header {
+      margin-bottom: 24px;
+    }
+    .tracker-tag {
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--accent-blue);
+      margin-bottom: 6px;
+      display: inline-block;
+    }
+    .dark-theme .tracker-tag { color: var(--accent-cyan); }
+    .slide-title {
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--text-main);
+      line-height: 1.25;
+      letter-spacing: -0.5px;
+    }
+    .dark-theme .slide-title { color: var(--text-light); }
+    .slide-subtitle {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      font-weight: 500;
+    }
+    .dark-theme .slide-subtitle { color: #94A3B8; }
+
+    /* Layout Containers & Grids */
+    .content-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      position: relative;
+    }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; height: 100%; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; height: 100%; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; height: 100%; }
+
+    /* Cards & Containers */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+    .card.top-accent { border-top: 4px solid var(--accent-blue); }
+    .card.top-accent-teal { border-top: 4px solid var(--accent-teal); }
+    .card.top-accent-gold { border-top: 4px solid var(--accent-gold); }
+    .card.top-accent-cyan { border-top: 4px solid var(--accent-cyan); }
+    .dark-theme .card {
+      background: #141E38;
+      border-color: #233255;
+      color: var(--text-light);
+    }
+    .card-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 8px;
+    }
+    .dark-theme .card-title { color: var(--text-light); }
+    .card-subtitle {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent-blue);
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .dark-theme .card-subtitle { color: var(--accent-cyan); }
+    .card-body {
+      font-size: 13.5px;
+      color: #334155;
+      line-height: 1.55;
+      flex: 1;
+    }
+    .dark-theme .card-body { color: #CBD5E1; }
+
+    .bullet-list { list-style: none; display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+    .bullet-list li {
+      font-size: 13px;
+      line-height: 1.5;
+      color: #475569;
+      position: relative;
+      padding-left: 18px;
+    }
+    .bullet-list li::before {
+      content: "•";
+      position: absolute;
+      left: 0;
+      color: var(--accent-blue);
+      font-weight: bold;
+      font-size: 16px;
+      line-height: 1;
+    }
+    .bullet-list.check li::before {
+      content: "✔";
+      color: var(--accent-teal);
+      font-size: 12px;
+      top: 2px;
+    }
+    .dark-theme .bullet-list li { color: #94A3B8; }
+
+    /* KPI Number Callouts */
+    .kpi-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      text-align: left;
+      box-shadow: var(--shadow-sm);
+    }
+    .kpi-val {
+      font-size: 36px;
+      font-weight: 800;
+      line-height: 1.1;
+      margin-bottom: 4px;
+      letter-spacing: -1px;
+    }
+    .kpi-label { font-size: 13px; font-weight: 700; color: var(--text-main); margin-bottom: 2px; }
+    .kpi-sub { font-size: 11.5px; color: var(--text-muted); }
+
+    /* Comparison Table / Boxes */
+    .comp-box {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 10px;
+    }
+    .comp-row {
+      background: #F1F5F9;
+      border-radius: 8px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12.5px;
+    }
+    .comp-trad { color: var(--accent-red); font-weight: 600; display: flex; align-items: center; gap: 6px; }
+    .comp-nero { color: var(--accent-green); font-weight: 700; display: flex; align-items: center; gap: 6px; }
+
+    /* Code & Formulas */
+    .formula-banner {
+      background: #0F172A;
+      color: #38BDF8;
+      font-family: 'JetBrains Mono', monospace;
+      padding: 16px 20px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* Speaker Notes Drawer */
+    .notes-drawer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 220px;
+      background: rgba(15, 23, 42, 0.98);
+      backdrop-filter: blur(16px);
+      border-top: 2px solid var(--accent-blue);
+      color: #E2E8F0;
+      padding: 20px 32px;
+      transform: translateY(100%);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 200;
+      box-shadow: 0 -10px 25px rgba(0,0,0,0.5);
+      display: flex;
+      flex-direction: column;
+    }
+    .notes-drawer.open { transform: translateY(0); }
+    .notes-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      padding-bottom: 6px;
+    }
+    .notes-title { font-size: 13px; font-weight: 700; color: var(--accent-cyan); text-transform: uppercase; letter-spacing: 1px; }
+    .notes-body {
+      font-size: 14px;
+      line-height: 1.6;
+      color: #CBD5E1;
+      overflow-y: auto;
+      white-space: pre-line;
+      flex: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation & Controls -->
+  <div class="top-bar">
+    <div class="top-title">
+      <span>NERO ENTERPRISE DEVOPS STANDARD</span>
+      <span class="badge">CTO EXECUTIVE BRIEFING</span>
+    </div>
+    <div class="controls">
+      <button class="btn" id="prevBtn" onclick="prevSlide()">◀ Prev</button>
+      <div class="slide-counter" id="slideCounter">Slide 1 / 14</div>
+      <button class="btn" id="nextBtn" onclick="nextSlide()">Next ▶</button>
+      <button class="btn" id="notesToggle" onclick="toggleNotes()">📝 Notes (S)</button>
+      <button class="btn" onclick="toggleFullScreen()">⛶ Fullscreen (F)</button>
+    </div>
+  </div>
+
+  <!-- Stage -->
+  <div class="stage">
+
+    <!-- SLIDE 1: Title -->
+    <div class="slide active dark-theme" id="slide-1">
+      <div class="content-area" style="justify-content: center; padding-left: 20px; border-left: 6px solid var(--accent-cyan);">
+        <div class="tracker-tag">EXECUTIVE TECHNOLOGY BRIEFING</div>
+        <h1 class="slide-title" style="font-size: 44px; margin-bottom: 12px;">NERO ENTERPRISE DEVOPS STANDARD</h1>
+        <h2 style="font-size: 22px; color: var(--accent-cyan); font-weight: 600; margin-bottom: 24px;">Universal Application Delivery, Supply-Chain Governance & Deterministic Operations</h2>
+        <p style="font-size: 15px; color: #94A3B8; max-width: 800px; line-height: 1.6; margin-bottom: 30px;">
+          A strategic operating model and platform standard replacing fragmented, bespoke CI/CD pipelines with a single hardened Golden Path across Multi-Cloud and Local Environments.
+        </p>
+        <div style="font-size: 13px; color: #64748B; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 16px;">
+          <strong>Target Audience:</strong> Chief Technology Officer (CTO) & Senior Engineering Leadership<br>
+          <strong>Core Invariant:</strong> "Build once, create an immutable release, promote everywhere, and rollback without rebuilding."
+        </div>
+      </div>
+      <div class="speaker-notes-content" style="display:none;">
+        EXECUTIVE OPENING SCRIPT FOR CTO:
+        "CTO, thank you for your time. Today, I am not presenting a project-specific deployment or a single app's pipeline. I am presenting the NERO Enterprise DevOps Standard—a platform-level engineering standard and operating model.
+        
+        Our core thesis is simple: in modern enterprise software, building custom CI/CD pipelines for every service is an anti-pattern. It leads to pipeline sprawl, security vulnerabilities, and unpredictable downtime.
+        
+        NERO shifts us from fragmented, bespoke pipelines to a single, hardened, universal operating standard."
+      </div>
+    </div>
+
+    <!-- SLIDE 2: Problem Statement -->
+    <div class="slide" id="slide-2">
+      <div class="slide-header">
+        <span class="tracker-tag">Executive Problem Statement</span>
+        <h2 class="slide-title">The Enterprise Delivery Crisis: The Fragmentation Trap</h2>
+        <div class="slide-subtitle">Why traditional, decentralized DevOps fails to scale and creates acute executive risk.</div>
+      </div>
+      <div class="content-area">
+        <div class="grid-2">
+          <div class="card" style="border-left: 4px solid var(--accent-red);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <div class="card-title">1. Pipeline Sprawl & Snowflake Scripts</div>
+              <span style="background: #FEE2E2; color: var(--accent-red); font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 4px;">DEVOPS OVERHEAD +300%</span>
+            </div>
+            <div class="card-body">
+              50 microservices typically mean 50 bespoke Jenkinsfiles, GitHub Action workflows, or GitLab configs. Every team reinvents deployment logic, creating unmaintainable technical debt and tribal dependencies.
+            </div>
+          </div>
+          <div class="card" style="border-left: 4px solid var(--accent-gold);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <div class="card-title">2. Mutable Artifact Recompilation</div>
+              <span style="background: #FEF3C7; color: var(--accent-gold); font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 4px;">REBUILD RISK: CRITICAL</span>
+            </div>
+            <div class="card-body">
+              Teams re-run builds between Dev, QA, and Prod. A freshly compiled container in Prod is NOT the artifact tested in QA. Subtle compiler variations and dependency drift trigger high-severity production outages.
+            </div>
+          </div>
+          <div class="card" style="border-left: 4px solid var(--accent-red);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <div class="card-title">3. Supply Chain Blindness & CVE Exposure</div>
+              <span style="background: #FEE2E2; color: var(--accent-red); font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 4px;">SUPPLY CHAIN: HIGH VULNERABILITY</span>
+            </div>
+            <div class="card-body">
+              Untracked third-party dependencies, unverified container digests, and mutable tags expose the enterprise to SolarWinds/Log4j style supply-chain injections and untracked vulnerabilities.
+            </div>
+          </div>
+          <div class="card" style="border-left: 4px solid var(--accent-gold);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <div class="card-title">4. Compliance & Audit Scramble</div>
+              <span style="background: #FEF3C7; color: var(--accent-gold); font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 4px;">AUDIT READINESS: REACTIVE</span>
+            </div>
+            <div class="card-body">
+              Proving SOC2, ISO27001, or SOX compliance requires weeks of manual screenshot gathering. No cryptographic verification exists to prove an artifact hasn't been tampered with between staging and release.
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="speaker-notes-content" style="display:none;">
+        TALKING POINTS FOR CTO:
+        "- As an enterprise scales beyond 10-20 microservices, decentralized CI/CD breaks down.
+        - When developers write their own deployment scripts, you inherit 50 variations of Terraform, 50 different Docker practices, and zero central visibility.
+        - Rebuilding artifacts across stages is a critical hidden flaw in most enterprises: Dev builds image A, QA rebuilds image B, Prod rebuilds image C. They are not byte-for-byte identical.
+        - When an auditor asks 'Can you prove this exact container image in production was tested in QA and not tampered with?', most teams cannot answer with cryptographic certainty."
+      </div>
+    </div>
+
+    <!-- SLIDE 3: The NERO Paradigm -->
+    <div class="slide" id="slide-3">
+      <div class="slide-header">
+        <span class="tracker-tag">Strategic Solution</span>
+        <h2 class="slide-title">The NERO Paradigm: Platform Standard vs. Snowflake Pipelines</h2>
+        <div class="slide-subtitle">A centralized, golden-path platform decoupling application code from delivery mechanics.</div>
+      </div>
+      <div class="content-area">
+        <div class="grid-2">
+          <div class="card top-accent">
+            <div class="card-title">The Core Architecture Principle</div>
+            <div style="font-size: 14px; font-style: italic; color: var(--accent-blue); margin: 12px 0 16px 0; line-height: 1.5;">
+              “Build the platform once. Register applications through declarative specs. Automate delivery through universal, policy-controlled workflows. Build once, verify, promote everywhere, and rollback without rebuilding.”
+            </div>
+            <ul class="bullet-list">
+              <li><strong>10-Minute Onboarding:</strong> Developers provide one declarative <code>app.spec.yaml</code>; zero pipeline code written.</li>
+              <li><strong>Zero Snowflake Pipelines:</strong> A single universal engine orchestrates all applications across all stacks.</li>
+              <li><strong>Strict Separation of Concerns:</strong> Developers code features; the platform enforces security, infrastructure, and compliance.</li>
+            </ul>
+          </div>
+          <div class="card top-accent-teal">
+            <div class="card-title">Clean Separation of Enterprise Roles</div>
+            <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 8px;">
+              <div>
+                <strong style="color: var(--accent-teal); font-size: 13.5px;">✔ Application Teams (100% Velocity):</strong>
+                <p style="font-size: 12.5px; color: #475569; margin-top: 2px;">Declare metadata, ports, health endpoints, and env variables in <code>app.spec.yaml</code>. Zero CI/CD toil.</p>
+              </div>
+              <div>
+                <strong style="color: var(--accent-blue); font-size: 13.5px;">✔ Platform & SRE Teams (Centralized Control):</strong>
+                <p style="font-size: 12.5px; color: #475569; margin-top: 2px;">Maintain the universal Python engine, shared Terraform modules, Jenkins pipelines, and deployment orchestration. Changes propagate instantly.</p>
+              </div>
+              <div>
+                <strong style="color: var(--accent-gold); font-size: 13.5px;">✔ Security & Governance (Automated Trust):</strong>
+                <p style="font-size: 12.5px; color: #475569; margin-top: 2px;">Central Application Catalog enforces authorization, non-root execution, vulnerability thresholds, and cryptographic Merkle audit logs.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="speaker-notes-content" style="display:none;">
+        TALKING POINTS FOR CTO:
+        "- This is our strategic shift: Treat DevOps as an Enterprise Platform Product, not an ad-hoc project deliverable.
+        - In the legacy model, every new app requires a DevOps engineer to spend 2-3 weeks writing Jenkinsfiles, Dockerfiles, and Terraform.
+        - In NERO, onboarding takes 10 minutes. The developer only declares WHAT their app is (ports, health check, runtime). The platform knows HOW to build, secure, and deploy it.
+        - Central platform engineering updates automatically apply to all 50+ services without asking application teams to update 50 separate repositories."
+      </div>
+    </div>
+
+    <!-- SLIDE 4: 4 Pillars of Architecture -->
+    <div class="slide" id="slide-4">
+      <div class="slide-header">
+        <span class="tracker-tag">Technical Architecture</span>
+        <h2 class="slide-title">The 4-Pillar Universal Platform Foundation</h2>
+        <div class="slide-subtitle">A modular, extensible system architecture decoupled across specification, orchestration, and infrastructure.</div>
+      </div>
+      <div class="content-area">
+        <div class="grid-4">
+          <div class="card top-accent">
+            <div class="card-title">1. Declarative Catalog</div>
+            <div class="card-subtitle">Specification Layer</div>
+            <ul class="bullet-list check">
+              <li>Strict Pydantic schema validation</li>
+              <li>Central <code>applications.yaml</code> trust registry</li>
+              <li>Prevents shadow / unauthorized deployments</li>
+              <li>Defines ports, runtimes, dependencies</li>
+            </ul>
+          </div>
+          <div class="card top-accent-cyan">
+            <div class="card-title">2. Universal Engine</div>
+            <div class="card-subtitle">Orchestration Layer</div>
+            <ul class="bullet-list check">
+              <li>Unified CLI for build, release, deploy</li>
+              <li>Pluggable runtime adapters (ECS, S3, RDS)</li>
+              <li>Dynamic multi-cloud parameter resolver</li>
+              <li>Standardized enterprise error hierarchy</li>
+            </ul>
+          </div>
+          <div class="card top-accent-teal">
+            <div class="card-title">3. Modular IaC</div>
+            <div class="card-subtitle">Infrastructure Layer</div>
+            <ul class="bullet-list check">
+              <li>State isolation across environments</li>
+              <li>Standardized VPC, ALB, ECS, S3, RDS</li>
+              <li>IAM least-privilege role boundaries</li>
+              <li>Zero hardcoded infrastructure IDs</li>
+            </ul>
+          </div>
+          <div class="card top-accent-gold">
+            <div class="card-title">4. Universal CI/CD</div>
+            <div class="card-subtitle">Pipeline Layer</div>
+            <ul class="bullet-list check">
+              <li>One pipeline handles 100% of apps</li>
+              <li>Dynamic parameter injection</li>
+              <li>Two-person production approval gates</li>
+              <li>Zero custom pipeline maintenance</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="speaker-notes-content" style="display:none;">
+        TALKING POINTS FOR CTO:
+        "- Here is the technical anatomy of NERO:
+        - Pillar 1 is the Declarative Catalog: It establishes our organizational contract. If an application is not registered in the catalog with approved team ownership, it cannot be deployed.
+        - Pillar 2 is the Universal Platform Engine: Written in modern Python, it contains the core business logic—how to validate manifests, resolve environment endpoints, and call deployment adapters.
+        - Pillar 3 is Modular Terraform: Pre-approved, hardened infrastructure modules with state isolation between Dev, QA, and Prod.
+        - Pillar 4 is the Universal Pipeline: Instead of 50 different Jenkinsfiles, we maintain ONE. It accepts the application ID and environment as parameters and calls the platform engine."
+      </div>
+    </div>
+
+    <!-- SLIDE 5: Immutable Releases & Zero-Rebuild Promotion -->
+    <div class="slide" id="slide-5">
+      <div class="slide-header">
+        <span class="tracker-tag">Release Engineering</span>
+        <h2 class="slide-title">Immutable Release Manifests & Zero-Rebuild Promotion</h2>
+        <div class="slide-subtitle">Eliminating environmental drift and deployment unpredictability with bit-for-bit identical promotion.</div>
+      </div>
+      <div class="content-area">
+        <div class="grid-2">
+          <div class="card top-accent">
+            <div class="card-title">The "Build Once, Promote Everywhere" Lifecycle</div>
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 8px;">
+              <div>
+                <strong style="color: var(--accent-blue); font-size: 13px;">1. Build & Seal (Develop):</strong>
+                <p style="font-size: 12px; color: #475569;">Docker images and static bundles are compiled ONCE. A cryptographic <code>release-manifest.json</code> is minted with full 64-char SHA-256 digests.</p>
+              </div>
+              <div>
+                <strong style="color: var(--accent-teal); font-size: 13px;">2. Qualification & Verification (QA):</strong>
+                <p style="font-size: 12px; color: #475569;">The EXACT same container digest and static bundle are deployed to QA. Automated synthetic health checks verify integrity. Zero recompilation.</p>
+              </div>
+              <div>
+                <strong style="color: var(--accent-gold); font-size: 13px;">3. Two-Person Production Gate (Prod):</strong>
+                <p style="font-size: 12px; color: #475569;">Upon QA sign-off and SRE Change Ticket validation, the EXACT SAME manifest is deployed to Production. Rebuilding in Prod is physically prevented.</p>
+              </div>
+              <div>
+                <strong style="color: var(--accent-green); font-size: 13px;">4. Sub-Minute Rollback:</strong>
+                <p style="font-size: 12px; color: #475569;">If an incident occurs, the platform rolls back to a previous verified release manifest instantly with zero rebuilding.</p>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Architectural Invariant Comparison</div>
+            <div class="comp-box">
+              <div class="comp-row">
+                <span class="comp-trad">❌ Builds separate image per env</span>
+                <span class="comp-nero">✔ Single SHA-256 promoted</span>
+              </div>
+              <div class="comp-row">
+                <span class="comp-trad">❌ Mutable tags (:latest, :v1)</span>
+                <span class="comp-nero">✔ Pinned immutable SHA-256</span>
+              </div>
+              <div class="comp-row">
+                <span class="comp-trad">❌ Rollback: git revert & rebuild</span>
+                <span class="comp-nero">✔ Instant pointer swap (< 90s)</span>
+              </div>
+              <div class="comp-row">
+                <span class="comp-trad">❌ MTTR: 25 — 45 minutes</span>
+                <span class="comp-nero">✔ MTTR: < 90 seconds</span>
+              </div>
+              <div class="comp-row">
+                <span class="comp-trad">❌ Environment drift: Frequent</span>
+                <span class="comp-nero">✔ Drift: 0% Mathematically impossible</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="speaker-notes-content" style="display:none;">
+        TALKING POINTS FOR CTO:
+        "- This slide addresses one of the most critical engineering invariants: Zero-Rebuild Promotion.
+        - In legacy systems, teams rebuild their code when deploying to production. That introduces dependency changes, package manager drift, and compiler variations.
+        - Under NERO, an artifact is sealed at the commit stage into an immutable release manifest with 64-character SHA-256 digests.
+        - What runs in Production is bit-for-bit identical to what was verified in QA. If something fails, rollback takes under 90 seconds because we simply stage the previous qualified release manifest without triggering another build."
+      </div>
+    </div>
+
+    <!-- SLIDE 6: Supply Chain Security -->
+    <div class="slide" id="slide-6">
+      <div class="slide-header">
+        <span class="tracker-tag">Cybersecurity & Governance</span>
+        <h2 class="slide-title">Software Supply Chain Security & NIST SSDF Alignment</h2>
+        <div class="slide-subtitle">Built-in compliance with NIST SP 800-218 and SLSA Level 3 supply-chain integrity standards.</div>
+      </div>
+      <div class="content-area">
+        <div class="grid-4">
+          <div class="card top-accent">
+            <div style="background: var(--badge-bg); color: var(--accent-blue); font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 4px; margin-bottom: 8px;">ZERO-TRUST ADMISSION</div>
+            <div class="card-title">Admission Preflight Gate</div>
+            <div class="card-body">
+              Rejects untrusted repositories, unauthorized branches, and unregistered applications before any deployment code executes.
+            </div>
+          </div>
+          <div class="card top-accent-cyan">
+            <div style="background: var(--badge-bg); color: var(--accent-cyan); font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 4px; margin-bottom: 8px;">DEFENSE-IN-DEPTH</div>
+            <div class="card-title">Path Confinement</div>
+            <div class="card-body">
+              Enforces canonical directory boundary <code>releases/{app_id}/{release_tag}/</code>, eliminating directory traversal and symlink escapes.
+            </div>
+          </div>
+          <div class="card top-accent-teal">
+            <div style="background: var(--badge-bg); color: var(--accent-teal); font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 4px; margin-bottom: 8px;">TAMPER-PROOF MINTING</div>
+            <div class="card-title">RFC 8785 Canonical JSON</div>
+            <div class="card-body">
+              RFC 8785 formatting guarantees byte-for-byte reproducible checksums across platforms and architectures.
+            </div>
+          </div>
+          <div class="card top-accent-gold">
+            <div style="background: var(--badge-bg); color: var(--accent-gold); font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 4px; margin-bottom: 8px;">AUDITABLE EXEMPTIONS</div>
+            <div class="card-title">Policy & Waiver Control</div>
+            <div class="card-body">
+              Cryptographically signed vulnerability waivers with mandatory expiration dates and ticket linkage. Zero unmanaged CVEs.
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="speaker-notes-content" style="display:none;">
+        TALKING POINTS FOR CTO:
+        "- Supply chain attacks like SolarWinds and Codecov demonstrated that CI/CD pipelines are prime targets for malicious infiltration.
+        - NERO builds zero-trust admission directly into the ingestion engine.
+        - An artifact cannot enter our environment unless it passes strict preflight validation: authorized repository, verified git commit, canonical RFC 8785 JSON manifest, and valid SHA-256 digests.
+        - Artifact storage is strictly confined to scoped directory namespaces, preventing traversal or sibling-prefix attacks.
+        - This natively satisfies NIST SP 800-218 (Secure Software Development Framework) and aligns with SLSA Level 3 supply chain integrity."
+      </div>
+    </div>
+
+    <!-- SLIDE 7: High-Availability Reliability & Crash Safety -->
+    <div class="slide" id="slide-7">
+      <div class="slide-header">
+        <span class="tracker-tag">System Reliability</span>
+        <h2 class="slide-title">Crash-Safe State Machines & Write-Ahead Audit Logging</h2>
+        <div class="slide-subtitle">Defensive engineering guarantees consistency during hardware, network, or power interruptions.</div>
+      </div>
+      <div class="content-area">
+        <div class="grid-2">
+          <div class="card top-accent">
+            <div class="card-title">Write-Ahead Audit & Publication Protocol</div>
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
+              <div>
+                <strong style="color: var(--accent-blue); font-size: 12.5px;">1. Isolated Staging:</strong>
+                <p style="font-size: 12px; color: #475569;">Writes payload to private <code>.staging/.tmp_{id}.json</code> and calls <code>fsync()</code> to guarantee non-volatile disk persistence.</p>
+              </div>
+              <div>
+                <strong style="color: var(--accent-cyan); font-size: 12.5px;">2. Two-Phase Staging Rename:</strong>
+                <p style="font-size: 12px; color: #475569;">Renames temporary file to <code>.staging/{id}.json.staged</code>. Invisible to public consumers.</p>
+              </div>
+              <div>
+                <strong style="color: var(--accent-teal); font-size: 12.5px;">3. Write-Ahead Audit Commitment:</strong>
+                <p style="font-size: 12px; color: #475569;">Appends <code>CANDIDATE_INGEST_SUCCESS</code> to the immutable audit ledger BEFORE publishing.</p>
+              </div>
+              <div>
+                <strong style="color: var(--accent-green); font-size: 12.5px;">4. Atomic Public Publication:</strong>
+                <p style="font-size: 12px; color: #475569;">Executes atomic <code>os.replace</code> to <code>staging_dir/{id}.json</code>. Consumers only discover fully audited candidates.</p>
+              </div>
+            </div>
+          </div>
+          <div class="card top-accent-teal">
+            <div class="card-title">Automated Recovery & Quarantine</div>
+            <ul class="bullet-list check" style="gap: 12px; margin-top: 10px;">
+              <li>
+                <strong>Forward Reconciliation:</strong> If a crash interrupts publication after the audit commit, the reconciler automatically detects the staged file and finishes publication.
+              </li>
+              <li>
+                <strong>Automatic Orphan Quarantine:</strong> Incomplete stages or corrupted temp files lacking success audit events are quarantined to <code>.orphans/</code> without manual intervention.
+              </li>
+              <li>
+                <strong>Advisory Concurrency Locks:</strong> Prevents race conditions during simultaneous identical retries via atomic filesystem locks on <code>.staging/{id}.lock</code>.
+              </li>
+              <li>
+                <strong>Un-Audited Artifact Defense:</strong> Any rogue or manually placed file in staging lacking an audit record is immediately quarantined.
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="speaker-notes-content" style="display:none;">
+        TALKING POINTS FOR CTO:
+        "- In enterprise DevOps, race conditions and crash failures during deployments leave systems in unpredictable, corrupted states.
+        - NERO incorporates transactional database engineering into pipeline operations: Write-Ahead Logging (WAL).
+        - Notice Step 3: We commit the success audit record BEFORE the final atomic publication. If the machine dies at any millisecond, the platform reconciler knows exactly how to forward-recover or quarantine.
+        - An un-audited or rogue artifact can never be published to downstream systems. Everything is mathematically recoverable."
+      </div>
+    </div>
+
+    <!-- SLIDE 8: Developer Experience & 10-Minute Onboarding -->
+    <div class="slide" id="slide-8">
+      <div class="slide-header">
+        <span class="tracker-tag">Developer Experience</span>
+        <h2 class="slide-title">Polyglot Self-Service & 10-Minute Onboarding</h2>
+        <div class="slide-subtitle">Freeing product engineering teams from DevOps toil through declarative specifications.</div>
+      </div>
+      <div class="content-area">
+        <div class="grid-3">
+          <div class="card top-accent">
+            <div class="card-title">Polyglot Runtimes</div>
+            <div class="card-subtitle">Multi-Language Ecosystem</div>
+            <ul class="bullet-list check">
+              <li>Java / Spring Boot (Maven & Gradle)</li>
+              <li>Node.js (Express, Nest, Next)</li>
+              <li>Python (FastAPI, Django, SQS Workers)</li>
+              <li>SPA Frontends (React, Vite, Angular)</li>
+            </ul>
+          </div>
+          <div class="card top-accent-cyan">
+            <div class="card-title">Declarative Spec</div>
+            <div class="card-subtitle">Zero Custom Pipelines</div>
+            <ul class="bullet-list check">
+              <li>Declares component architecture</li>
+              <li>Exposed HTTP ports & health URLs</li>
+              <li>Environment variables & Secrets</li>
+              <li>Dependencies & deployment strategies</li>
+            </ul>
+          </div>
+          <div class="card top-accent-teal">
+            <div class="card-title">Self-Service Workflow</div>
+            <div class="card-subtitle">Rapid Developer Ramp-up</div>
+            <ul class="bullet-list check">
+              <li>1. Copy starter template</li>
+              <li>2. Edit <code>app.spec.yaml</code> (10 mins)</li>
+              <li>3. Validate via local platform CLI</li>
+              <li>4. Register in Central Catalog</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="speaker-notes-content" style="display:none;">
+        TALKING POINTS FOR CTO:
+        "- From a developer perspective, DevOps should be invisible. Developers want to write code, not debug Jenkins Groovy scripts or Terraform provider errors.
+        - NERO supports our polyglot engineering landscape out of the box—Java, Node, Python, and modern Frontends.
+        - Instead of spending 2 weeks waiting for platform engineers to write infrastructure code, an engineering team onboards in 10 minutes by creating an app.spec.yaml.
+        - They test locally using the platform CLI, run their unit tests, and submit their PR. Delivery velocity increases dramatically."
+      </div>
+    </div>
+
+    <!-- SLIDE 9: Multi-Environment Cloud Parity & FinOps -->
+    <div class="slide" id="slide-9">
+      <div class="slide-header">
+        <span class="tracker-tag">Cloud Parity & FinOps</span>
+        <h2 class="slide-title">Local Simulation to Enterprise AWS Multi-Account Parity</h2>
+        <div class="slide-subtitle">Slashing cloud development costs to $0.00 while guaranteeing zero environmental drift in production.</div>
+      </div>
+      <div class="content-area">
+        <div class="grid-2">
+          <div class="card top-accent-teal">
+            <div class="card-title">Local Cloud Emulation (Floci / LocalStack)</div>
+            <ul class="bullet-list" style="gap: 12px; margin-top: 10px;">
+              <li><strong style="color: var(--accent-green);">$0.00 Cloud Spend:</strong> Full AWS simulation (S3, SQS, Secrets Manager, ECS) running locally in Docker.</li>
+              <li><strong>Instant Developer Feedback:</strong> Run full integration pipelines locally in seconds without cloud latency or quotas.</li>
+              <li><strong>Isolated Test Enclaves:</strong> Ephemeral environments for CI pull-request validation with zero cloud resource leakage.</li>
+              <li><strong>Offline Development:</strong> Engineers can build and verify entire multi-service systems without internet connectivity.</li>
+            </ul>
+          </div>
+          <div class="card top-accent">
+            <div class="card-title">Enterprise AWS Multi-Account Topology</div>
+            <ul class="bullet-list" style="gap: 12px; margin-top: 10px;">
+              <li><strong>Multi-Account Isolation:</strong> Physical separation of accounts for CI Tooling, Develop, QA, and Production.</li>
+              <li><strong>Automated Context Resolver:</strong> Platform CLI dynamically resolves STS AssumeRole ARNs, Account IDs, and VPC Subnets.</li>
+              <li><strong style="color: var(--accent-blue);">Zero Code Changes:</strong> The identical application artifact and engine scripts run seamlessly on both Floci and AWS.</li>
+              <li><strong>FinOps Governance:</strong> Automatic idle resource tagging, automated cleanup of untagged resources, and cost attribution.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="speaker-notes-content" style="display:none;">
+        TALKING POINTS FOR CTO:
+        "- One of the biggest expenses in modern engineering organizations is development and QA cloud environments running 24/7.
+        - NERO incorporates a Floci-first architecture: a local AWS emulator running in lightweight Docker containers.
+        - Developers run full end-to-end integration tests, SQS queues, Secrets Manager, and S3 deployments on their laptops or local CI with ZERO cloud spend.
+        - When promoted to AWS, our dynamic Context Resolver binds the necessary IAM STS roles, VPC subnets, and Secrets without a single line of application code changing."
+      </div>
+    </div>
+
+    <!-- SLIDE 10: Compliance & Cryptographic Audit Ledger -->
+    <div class="slide" id="slide-10">
+      <div class="slide-header">
+        <span class="tracker-tag">Compliance & Auditing</span>
+        <h2 class="slide-title">Cryptographic Audit Ledger & Production Governance</h2>
+        <div class="slide-subtitle">Automated compliance with zero audit friction through SHA-256 Merkle-chained event logs.</div>
+      </div>
+      <div class="content-area">
+        <div class="formula-banner">
+          <span>SHA-256 MERKLE CHAIN:</span>
+          <span>record_hash<sub>i</sub> = SHA-256( record_payload<sub>i</sub> || record_hash<sub>i-1</sub> )</span>
+        </div>
+        <div class="grid-3">
+          <div class="card top-accent">
+            <div class="card-title">Two-Person Production Rule</div>
+            <div class="card-body">
+              Production deployment strictly mandates QA Lead approval plus SRE Change Ticket (CHG-*) verification. No single engineer can push to prod.
+            </div>
+          </div>
+          <div class="card top-accent-teal">
+            <div class="card-title">Automated SOC2 Evidence</div>
+            <div class="card-body">
+              Audit logs capture actor identity, git commit, test results, scanner outputs, and deployment approvals. Zero manual audit compilation.
+            </div>
+          </div>
+          <div class="card top-accent-gold">
+            <div class="card-title">Instant Tamper Detection</div>
+            <div class="card-body">
+              The platform verifier verifies all historical records in milliseconds. Non-repudiation is guaranteed mathematically across the enterprise.
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="speaker-notes-content" style="display:none;">
+        TALKING POINTS FOR CTO:
+        "- For enterprise leadership, audit compliance is often an expensive distraction. External auditors demand proof that nobody pushed unapproved code to production.
+        - NERO incorporates a cryptographically chained audit ledger inspired by Merkle trees.
+        - Every single event—from build to approval to deployment—is hashed with the hash of the preceding event.
+        - If an engineer or malicious insider modifies an old audit entry, the hash chain breaks instantly.
+        - Furthermore, production deployments enforce the Two-Person Rule: a QA lead must sign off, and an SRE must provide an active ITIL Change Ticket. Compliance is continuous, automated, and tamper-proof."
+      </div>
+    </div>
+
+    <!-- SLIDE 11: Business Impact & Strategic ROI -->
+    <div class="slide" id="slide-11">
+      <div class="slide-header">
+        <span class="tracker-tag">Business Value</span>
+        <h2 class="slide-title">Quantifiable Business Impact & Operational ROI</h2>
+        <div class="slide-subtitle">Transforming DevOps from an unpredictable cost center into a strategic competitive advantage.</div>
+      </div>
+      <div class="content-area">
+        <div class="grid-4" style="height: 160px; margin-bottom: 20px;">
+          <div class="kpi-card">
+            <div class="kpi-val" style="color: var(--accent-blue);">80% LESS</div>
+            <div class="kpi-label">Onboarding Time</div>
+            <div class="kpi-sub">Weeks ➔ 10 Minutes per app</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-val" style="color: var(--accent-teal);">90% DROP</div>
+            <div class="kpi-label">Pipeline Sprawl</div>
+            <div class="kpi-sub">50+ files ➔ 1 universal engine</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-val" style="color: var(--accent-green);">&lt; 90 SEC</div>
+            <div class="kpi-label">Recovery (MTTR)</div>
+            <div class="kpi-sub">Zero-rebuild rollback</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-val" style="color: var(--accent-gold);">100%</div>
+            <div class="kpi-label">Audit Traceability</div>
+            <div class="kpi-sub">Continuous compliance</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Strategic Executive Returns</div>
+          <ul class="bullet-list" style="gap: 8px;">
+            <li><strong>Engineering Headcount Efficiency:</strong> Eliminates the need to assign dedicated DevOps engineers to individual feature teams. Platform engineers maintain the core standard; developers self-serve.</li>
+            <li><strong>Drastic Risk & Outage Reduction:</strong> Zero-rebuild promotion and automated synthetic verification prevent bad releases from reaching production. MTTR drops from hours to under 90 seconds.</li>
+            <li><strong>Cloud Infrastructure Optimization:</strong> Floci-first local testing prevents expensive cloud resource sprawl during dev and PR qualification, saving tens of thousands in annual AWS spend.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="speaker-notes-content" style="display:none;">
+        TALKING POINTS FOR CTO:
+        "- Here is the bottom-line ROI for executive leadership:
+        - Onboarding: We cut onboarding from 2 weeks of Jira back-and-forth down to 10 minutes.
+        - DevOps Maintenance: Instead of maintaining 50 separate pipelines, we maintain one universal platform engine. That's a 90% reduction in pipeline maintenance toil.
+        - MTTR: When an outage strikes in production, rollback is under 90 seconds because we stage the previous release manifest with zero recompilation.
+        - FinOps: Developers test locally against Floci at $0.00 cloud cost, avoiding AWS bill shock.
+        - Platform engineering stops being a bottleneck and becomes a strategic business accelerant."
+      </div>
+    </div>
+
+    <!-- SLIDE 12: Deterministic First, AI Second -->
+    <div class="slide" id="slide-12">
+      <div class="slide-header">
+        <span class="tracker-tag">Technology Strategy</span>
+        <h2 class="slide-title">The AI-Ready Platform: Deterministic Foundation to Autonomous Ops</h2>
+        <div class="slide-subtitle">Why a rigorous deterministic platform is the non-negotiable prerequisite for enterprise DevOps AI.</div>
+      </div>
+      <div class="content-area">
+        <div class="grid-2">
+          <div class="card top-accent">
+            <div class="card-title">Programme 1: Deterministic Foundation</div>
+            <div class="card-subtitle">Phases A0 — A9 (Core Engineering Standard)</div>
+            <ul class="bullet-list check" style="gap: 12px; margin-top: 8px;">
+              <li><strong>100% Deterministic:</strong> Rules, schemas, typed contracts, and immutable manifests.</li>
+              <li><strong>Zero AI Dependencies:</strong> Robust, battle-tested Python orchestrator and Terraform modules.</li>
+              <li><strong>Clean Data & Telemetry:</strong> Complete audit trails, structured JSON event logs, and metric sinks.</li>
+              <li><strong>Guaranteed Guardrails:</strong> Separation of duties, two-person rules, and hard failure barriers.</li>
+            </ul>
+          </div>
+          <div class="card top-accent-teal">
+            <div class="card-title">Programme 2: AI-Enhanced Operations</div>
+            <div class="card-subtitle">Phases B0 — B6 (Evolutionary Intelligence)</div>
+            <ul class="bullet-list" style="gap: 10px; margin-top: 8px;">
+              <li><strong style="color: var(--accent-blue);">B0-B2 (Observe & Recommend):</strong> AI agents analyze failure logs, detect anomalies, and suggest optimal resource sizing.</li>
+              <li><strong style="color: var(--accent-teal);">B3-B4 (Supervised SRE):</strong> AI proposes runbook remediations subject to explicit human-in-the-loop authorization.</li>
+              <li><strong style="color: var(--accent-gold);">B5-B6 (Autonomous Self-Healing):</strong> Safe autonomous remediations executed within strict, typed platform tool boundaries.</li>
+              <li><em>Crucial Insight:</em> AI agents cannot safely operate in chaotic, unstructured environments. NERO provides the trusted substrate.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="speaker-notes-content" style="display:none;">
+        TALKING POINTS FOR CTO:
+        "- Many organizations attempt to sprinkle 'DevOps AI' on top of messy, bespoke pipelines. That is dangerous and creates hallucination-driven outages.
+        - Our strategic vision is governed by a strict two-programme architecture:
+        - Programme 1 builds the deterministic foundation: typed APIs, schemas, immutable release manifests, and cryptographic audit ledgers. Zero AI dependency.
+        - Once this platform standard is mature, Programme 2 introduces AI safely.
+        - Why? Because an AI agent cannot safely manage a cloud environment unless it calls strongly typed, schema-validated, audited platform tools with hard boundaries.
+        - By adopting NERO today, we are future-proofing our entire enterprise for safe, autonomous AI operations tomorrow."
+      </div>
+    </div>
+
+    <!-- SLIDE 13: Target Operating Model -->
+    <div class="slide" id="slide-13">
+      <div class="slide-header">
+        <span class="tracker-tag">Implementation Plan</span>
+        <h2 class="slide-title">Target Operating Model & Phased Enterprise Rollout</h2>
+        <div class="slide-subtitle">A pragmatic, low-risk adoption roadmap delivering immediate value without disrupting active feature delivery.</div>
+      </div>
+      <div class="content-area">
+        <div class="grid-3">
+          <div class="card top-accent">
+            <div class="card-title">Phase 1: Foundation & Pilot</div>
+            <div class="card-subtitle">Weeks 1 — 4</div>
+            <ul class="bullet-list">
+              <li>Deploy NERO Platform Core & Universal Pipeline</li>
+              <li>Establish Central Application Catalog</li>
+              <li>Onboard 2-3 representative pilot services (Java, Node, SPA)</li>
+              <li>Validate Floci and AWS multi-account deployment paths</li>
+            </ul>
+          </div>
+          <div class="card top-accent-teal">
+            <div class="card-title">Phase 2: Scale & Migration</div>
+            <div class="card-subtitle">Weeks 5 — 10</div>
+            <ul class="bullet-list">
+              <li>Launch 10-Minute Onboarding self-service workshops</li>
+              <li>Migrate core product tier applications to <code>app.spec.yaml</code></li>
+              <li>Deprecate legacy bespoke Jenkinsfiles/actions</li>
+              <li>Integrate automated SOC2 compliance reporting</li>
+            </ul>
+          </div>
+          <div class="card top-accent-gold">
+            <div class="card-title">Phase 3: Full Standardization</div>
+            <div class="card-subtitle">Weeks 11+</div>
+            <ul class="bullet-list">
+              <li>100% application delivery governed by NERO standard</li>
+              <li>Enable automated zero-rebuild rollback across all tiers</li>
+              <li>Implement FinOps automated idle resource reclamation</li>
+              <li>Initiate Phase B0 AI Observational Telemetry</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="speaker-notes-content" style="display:none;">
+        TALKING POINTS FOR CTO:
+        "- How do we get there? We do not propose a disruptive 'big bang' migration that halts product delivery.
+        - We follow a structured 3-phase rollout:
+        - Phase 1 establishes the platform foundation and onboard 2-3 pilot applications across different runtimes.
+        - Phase 2 expands across the engineering organization using our 10-minute onboarding model, systematically sunsetting old bespoke pipelines.
+        - Phase 3 achieves full enterprise standardization, automated compliance reporting, and unlocks the AI-enhanced roadmap.
+        - Risk is strictly contained, and value is demonstrated from Week 1."
+      </div>
+    </div>
+
+    <!-- SLIDE 14: Executive Decision & Next Steps -->
+    <div class="slide dark-theme" id="slide-14">
+      <div class="slide-header">
+        <span class="tracker-tag">Executive Decision</span>
+        <h2 class="slide-title">Recommendations & Immediate Next Steps</h2>
+        <div class="slide-subtitle">Establishing NERO as the foundational technology delivery standard for our enterprise.</div>
+      </div>
+      <div class="content-area">
+        <div class="grid-3" style="margin-bottom: 24px;">
+          <div class="card">
+            <div class="card-title" style="color: var(--accent-cyan);">1. Standard Mandate</div>
+            <div class="card-body">
+              Formally endorse the NERO Enterprise DevOps Standard as the mandatory baseline for all new and existing applications across product engineering.
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title" style="color: var(--accent-blue);">2. Dedicated Platform Guild</div>
+            <div class="card-body">
+              Empower the Platform Engineering team to own and extend the universal core engine, shared Terraform modules, and governance catalog.
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title" style="color: var(--accent-gold);">3. Sunset Snowflake CI/CD</div>
+            <div class="card-body">
+              Initiate the phased deprecation of legacy custom pipelines, transitioning feature teams to declarative 10-minute self-service onboarding.
+            </div>
+          </div>
+        </div>
+        <div style="background: rgba(6, 182, 212, 0.1); border: 1px solid var(--accent-cyan); border-radius: 10px; padding: 18px 24px; text-align: center;">
+          <div style="color: var(--accent-cyan); font-weight: 800; font-size: 16px;">
+            NERO transforms DevOps from an unpredictable operational cost into an institutional competitive advantage — faster, safer, compliant, and AI-ready.
+          </div>
+        </div>
+      </div>
+      <div class="speaker-notes-content" style="display:none;">
+        CLOSING TALKING POINTS FOR CTO:
+        "- CTO, in summary: Adopting the NERO DevOps Standard is not just a tactical pipeline upgrade. It is an executive decision to eliminate delivery risk and empower our developers.
+        - With NERO, we gain:
+          1. Massive developer velocity via 10-minute self-service onboarding.
+          2. Mathematical release certainty with zero-rebuild promotion and sub-90-second rollback.
+          3. Continuous audit compliance with cryptographic Merkle-chained logging.
+          4. A trusted, typed foundation ready for the coming wave of autonomous AI SRE agents.
+        - We request your executive approval to establish NERO as our corporate standard and begin Phase 1 rollout. Thank you."
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Speaker Notes Drawer -->
+  <div class="notes-drawer" id="notesDrawer">
+    <div class="notes-header">
+      <span class="notes-title">Speaker Script & CTO Talking Points</span>
+      <button class="btn" style="padding: 2px 8px; font-size: 11px;" onclick="toggleNotes()">✕ Close</button>
+    </div>
+    <div class="notes-body" id="notesText"></div>
+  </div>
+
+  <script>
+    let currentSlide = 1;
+    const totalSlides = 14;
+    const slides = document.querySelectorAll('.slide');
+    const counter = document.getElementById('slideCounter');
+    const notesText = document.getElementById('notesText');
+    const notesDrawer = document.getElementById('notesDrawer');
+    const notesToggle = document.getElementById('notesToggle');
+
+    function updateSlide(newIndex) {
+      if (newIndex < 1 || newIndex > totalSlides) return;
+      slides[currentSlide - 1].classList.remove('active');
+      currentSlide = newIndex;
+      slides[currentSlide - 1].classList.add('active');
+      counter.innerText = `Slide ${currentSlide} / ${totalSlides}`;
+      
+      // Update speaker notes
+      const activeNotes = slides[currentSlide - 1].querySelector('.speaker-notes-content');
+      notesText.innerText = activeNotes ? activeNotes.innerText.trim() : 'No speaker notes for this slide.';
+    }
+
+    function nextSlide() { updateSlide(currentSlide + 1); }
+    function prevSlide() { updateSlide(currentSlide - 1); }
+    function toggleNotes() {
+      notesDrawer.classList.toggle('open');
+      notesToggle.classList.toggle('active');
+    }
+    function toggleFullScreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else {
+        if (document.exitFullscreen) document.exitFullscreen();
+      }
+    }
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        e.preventDefault();
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        e.preventDefault();
+        prevSlide();
+      } else if (e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        toggleNotes();
+      } else if (e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        toggleFullScreen();
+      }
+    });
+
+    // Initialize notes on load
+    updateSlide(1);
+  </script>
+</body>
+</html>

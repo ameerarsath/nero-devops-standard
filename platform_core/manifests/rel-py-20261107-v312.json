@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0.0",
+  "release_id": "rel-py-20261107-v312",
+  "application": "sample-python-worker",
+  "source": {
+    "repository": "https://github.com/ameerarsath/billing-system.git",
+    "commit_sha": "3bf604266b4f233c3899d0e315a0538812542b04"
+  },
+  "platform_version": "1.0.0",
+  "spec_version": "1.0.0",
+  "components": {
+    "worker": {
+      "image": "worker:rel-py-20261107-v312",
+      "digest": "sha256:1921e42c30b180669a166f4db5dd94a0fbb7609571d0f8a31f51467d43fe3031"
+    }
+  },
+  "sbom": {
+    "format": "CycloneDX",
+    "reference": "sbom/sample-python-worker-rel-py-20261107-v312.json"
+  },
+  "provenance": {
+    "reference": "provenance/sample-python-worker-rel-py-20261107-v312.json"
+  },
+  "build": {
+    "timestamp": "2026-11-06T19:03:01.250617+00:00",
+    "builder_identity": "jenkins-runner@trusted-agent"
+  },
+  "raw_components": {
+    "worker": {
+      "component_name": "worker",
+      "artifact_type": "oci_container_image",
+      "image_tag": null,
+      "image_digest": null,
+      "artifact_path": "worker:rel-py-20261107-v312",
+      "checksum_sha256": "sha256:1921e42c30b180669a166f4db5dd94a0fbb7609571d0f8a31f51467d43fe3031",
+      "sbom_path": null,
+      "build_metadata": {
+        "adapter": "build.dockerfile",
+        "image_tag": "worker:rel-py-20261107-v312",
+        "image_id": "sha256:1921e42c30b180669a166f4db5dd94a0fbb7609571d0f8a31f51467d43fe3031"
+      }
+    }
+  }
+}

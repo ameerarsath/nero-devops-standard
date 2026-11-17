@@ -1,0 +1,141 @@
+
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+        skipDefaultCheckout(true)
+    }
+
+    environment {
+        IMAGE_NAME = 'your-org/billing-frontend'
+        REGISTRY_HOST = 'ghcr.io'
+        CI = 'true'
+    }
+
+    parameters {
+        booleanParam(
+            name: 'PUSH_IMAGE',
+            defaultValue: false,
+            description: 'Push image from main only. Configure the registry credential first.'
+        )
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Check Node.js') {
+            steps {
+                sh '''
+                    node --version
+                    npm --version
+                '''
+            }
+        }
+
+        stage('Install dependencies') {
+            steps {
+                dir('frontend') {
+                    sh 'npm ci'
+                }
+            }
+        }
+
+        stage('Lint') {
+            steps {
+                dir('frontend') {
+                    sh 'npm run lint --if-present'
+                }
+            }
+        }
+
+        stage('Test') {
+            steps {
+                dir('frontend') {
+                    sh 'npm run test --if-present'
+                }
+            }
+        }
+
+        stage('Build') {
+            steps {
+                dir('frontend') {
+                    sh 'npm run build'
+                }
+            }
+        }
+
+        stage('Build container') {
+            when {
+                expression {
+                    fileExists('frontend/Dockerfile')
+                }
+            }
+            steps {
+                sh 'docker build --pull -t "$IMAGE_NAME:$BUILD_NUMBER" frontend'
+            }
+        }
+
+        stage('Push container') {
+            when {
+                allOf {
+                    branch 'main'
+                    expression {
+                        return params.PUSH_IMAGE == true
+                    }
+                    expression {
+                        return fileExists('frontend/Dockerfile')
+                    }
+                }
+            }
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'container-registry',
+                        usernameVariable: 'REGISTRY_USER',
+                        passwordVariable: 'REGISTRY_PASSWORD'
+                    )
+                ]) {
+                    sh '''
+                        set +x
+                        set -eu
+
+                        export DOCKER_CONFIG="$(mktemp -d)"
+                        trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+
+                        echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY_HOST" \
+                            --username "$REGISTRY_USER" \
+                            --password-stdin
+
+                        docker tag "$IMAGE_NAME:$BUILD_NUMBER" \
+                            "$REGISTRY_HOST/$IMAGE_NAME:$BUILD_NUMBER"
+
+                        docker push "$REGISTRY_HOST/$IMAGE_NAME:$BUILD_NUMBER"
+
+                        docker logout "$REGISTRY_HOST"
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+
+        success {
+            echo 'Node.js pipeline completed successfully.'
+        }
+
+        failure {
+            echo 'Node.js pipeline failed. Review stage logs.'
+        }
+    }
+}

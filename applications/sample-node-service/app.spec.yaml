@@ -1,0 +1,43 @@
+apiVersion: platform.enterprise.com/v1
+kind: Application
+
+metadata:
+  name: sample-node-service
+  version: "1.0.0"
+  description: "Enterprise Reference Microservice - Node.js Express API"
+  owner: "team-core-services@enterprise.com"
+
+spec:
+  components:
+    - name: api
+      type: container-service
+      source:
+        context: "applications/sample-node-service"
+        dockerfile: "Dockerfile"
+      build:
+        adapter: "dockerfile"
+        target_stage: "runtime"
+      runtime:
+        name: "nodejs"
+        version: "22"
+        base_image: "node:22-alpine"
+        lockfile: "package-lock.json"
+        port: 8080
+        cpu_units: 256
+        memory_mb: 512
+        health_check:
+          path: "/health"
+          interval_seconds: 15
+          timeout_seconds: 5
+          healthy_threshold: 2
+      deployment:
+        adapter: "ecs"
+        desired_count: 1
+
+  dependencies: []
+
+  secrets:
+    schema:
+      - name: "api.key"
+        description: "Internal service auth key"
+        required: false

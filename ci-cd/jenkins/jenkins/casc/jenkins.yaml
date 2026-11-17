@@ -1,0 +1,8 @@
+jenkins:
+  systemMessage: "Universal Jenkins Standard - local learning lab"
+  numExecutors: 2
+  mode: NORMAL
+
+unclassified:
+  location:
+    url: "http://localhost:8080/"

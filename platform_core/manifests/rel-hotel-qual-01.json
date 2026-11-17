@@ -1,0 +1,57 @@
+{
+  "schema_version": "1.0.0",
+  "release_id": "rel-hotel-qual-01",
+  "application": "hotel-billing",
+  "source": {
+    "repository": "https://github.com/ameerarsath/billing-system.git",
+    "commit_sha": "3bf604266b4f233c3899d0e315a0538812542b04"
+  },
+  "platform_version": "1.2.0-phase4",
+  "spec_version": "1.0.0",
+  "components": {
+    "backend": {
+      "image": "backend:rel-hotel-qual-01",
+      "digest": "sha256:e1f792db3e93b7f915e546365fb7e8b1c5df1deef335dbc8553ff186567c833a"
+    },
+    "frontend": {
+      "artifact": "frontend-dist-rel-hotel-qual-01.tar.gz",
+      "sha256": "e55eff11d7237c26bd4509ad9fc5feca618c9090b43b3dc7919e71c15a90a06e"
+    }
+  },
+  "sbom": {
+    "format": "CycloneDX",
+    "reference": "sbom/hotel-billing-rel-hotel-qual-01.json"
+  },
+  "provenance": {
+    "reference": "provenance/hotel-billing-rel-hotel-qual-01.json"
+  },
+  "build": {
+    "timestamp": "2026-11-07T16:15:00.000000+00:00",
+    "builder_identity": "jenkins-runner@trusted-agent"
+  },
+  "raw_components": {
+    "backend": {
+      "component_name": "backend",
+      "artifact_type": "oci_container_image",
+      "image_tag": "backend:rel-hotel-qual-01",
+      "image_digest": "sha256:e1f792db3e93b7f915e546365fb7e8b1c5df1deef335dbc8553ff186567c833a",
+      "artifact_path": "backend:rel-hotel-qual-01",
+      "checksum_sha256": "sha256:e1f792db3e93b7f915e546365fb7e8b1c5df1deef335dbc8553ff186567c833a",
+      "build_metadata": {
+        "adapter": "build.dockerfile",
+        "runtime": "temurin:17",
+        "lockfile": "pom.xml"
+      }
+    },
+    "frontend": {
+      "component_name": "frontend",
+      "artifact_type": "static_tarball",
+      "artifact_path": "frontend-dist-rel-hotel-qual-01.tar.gz",
+      "checksum_sha256": "e55eff11d7237c26bd4509ad9fc5feca618c9090b43b3dc7919e71c15a90a06e",
+      "build_metadata": {
+        "adapter": "build.node",
+        "dist_dir": "frontend/dist"
+      }
+    }
+  }
+}

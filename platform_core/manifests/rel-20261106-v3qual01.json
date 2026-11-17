@@ -1,0 +1,62 @@
+{
+  "schema_version": "1.0.0",
+  "release_id": "rel-20261106-v3qual01",
+  "application": "hotel-billing",
+  "source": {
+    "repository": "https://github.com/ameerarsath/billing-system.git",
+    "commit_sha": "3bf604266b4f233c3899d0e315a0538812542b04"
+  },
+  "platform_version": "1.0.0",
+  "spec_version": "1.0.0",
+  "components": {
+    "backend": {
+      "image": "backend:rel-20261106-v3qual01",
+      "digest": "sha256:7ddc3df995835ac89bc1c04ca1c29d325b20dec33c6a8941a3d814adafb4ad09"
+    },
+    "frontend": {
+      "artifact": "frontend-dist-rel-20261106-v3qual01.tar.gz",
+      "sha256": "d5687ad6ed9f2a65f374245d74459c3e2d58766a4f46eaafee50a0b2f1c4dc06"
+    }
+  },
+  "sbom": {
+    "format": "CycloneDX",
+    "reference": "sbom/hotel-billing-rel-20261106-v3qual01.json"
+  },
+  "provenance": {
+    "reference": "provenance/hotel-billing-rel-20261106-v3qual01.json"
+  },
+  "build": {
+    "timestamp": "2026-11-06T17:54:08.675099+00:00",
+    "builder_identity": "jenkins-runner@trusted-agent"
+  },
+  "raw_components": {
+    "backend": {
+      "component_name": "backend",
+      "artifact_type": "oci_container_image",
+      "image_tag": null,
+      "image_digest": null,
+      "artifact_path": "backend:rel-20261106-v3qual01",
+      "checksum_sha256": "sha256:7ddc3df995835ac89bc1c04ca1c29d325b20dec33c6a8941a3d814adafb4ad09",
+      "sbom_path": null,
+      "build_metadata": {
+        "adapter": "build.dockerfile",
+        "image_tag": "backend:rel-20261106-v3qual01",
+        "image_id": "sha256:7ddc3df995835ac89bc1c04ca1c29d325b20dec33c6a8941a3d814adafb4ad09"
+      }
+    },
+    "frontend": {
+      "component_name": "frontend",
+      "artifact_type": "static_tarball",
+      "image_tag": null,
+      "image_digest": null,
+      "artifact_path": "D:\\project\\billing-system-master\\billing-system-master\\frontend-dist-rel-20261106-v3qual01.tar.gz",
+      "checksum_sha256": "d5687ad6ed9f2a65f374245d74459c3e2d58766a4f46eaafee50a0b2f1c4dc06",
+      "sbom_path": null,
+      "build_metadata": {
+        "adapter": "build.node-frontend",
+        "dist_dir": "D:\\project\\billing-system-master\\billing-system-master\\frontend\\dist",
+        "file_count": 4
+      }
+    }
+  }
+}

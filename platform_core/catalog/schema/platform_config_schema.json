@@ -1,0 +1,175 @@
+{
+  "$defs": {
+    "DeploymentConfigModel": {
+      "properties": {
+        "active_environment": {
+          "title": "Active Environment",
+          "type": "string"
+        },
+        "allowed_environments": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowed Environments",
+          "type": "array"
+        }
+      },
+      "required": [
+        "active_environment"
+      ],
+      "title": "DeploymentConfigModel",
+      "type": "object"
+    },
+    "EnvironmentConfigModel": {
+      "properties": {
+        "type": {
+          "enum": [
+            "simulator",
+            "aws"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "status": {
+          "default": "ACTIVE",
+          "pattern": "^[A-Z_]+$",
+          "title": "Status",
+          "type": "string"
+        },
+        "endpoint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Endpoint"
+        },
+        "in_docker_endpoint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "In Docker Endpoint"
+        },
+        "region": {
+          "pattern": "^[a-z0-9-]+$",
+          "title": "Region",
+          "type": "string"
+        },
+        "account_namespace": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Account Namespace"
+        },
+        "authentication": {
+          "title": "Authentication",
+          "type": "string"
+        },
+        "aws_profile": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Aws Profile"
+        },
+        "allow_real_aws_fallback": {
+          "default": false,
+          "title": "Allow Real Aws Fallback",
+          "type": "boolean"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        }
+      },
+      "required": [
+        "type",
+        "region",
+        "authentication"
+      ],
+      "title": "EnvironmentConfigModel",
+      "type": "object"
+    },
+    "PlatformMetadataModel": {
+      "properties": {
+        "version": {
+          "title": "Version",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        }
+      },
+      "required": [
+        "version"
+      ],
+      "title": "PlatformMetadataModel",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "platform": {
+      "$ref": "#/$defs/PlatformMetadataModel"
+    },
+    "deployment": {
+      "$ref": "#/$defs/DeploymentConfigModel"
+    },
+    "environments": {
+      "additionalProperties": {
+        "$ref": "#/$defs/EnvironmentConfigModel"
+      },
+      "title": "Environments",
+      "type": "object"
+    }
+  },
+  "required": [
+    "platform",
+    "deployment",
+    "environments"
+  ],
+  "title": "PlatformConfigModel",
+  "type": "object"
+}

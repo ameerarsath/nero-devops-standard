@@ -1,0 +1,14 @@
+# Floci Local Simulation Variables for Production
+aws_region     = "us-east-1"
+floci_endpoint = "http://localhost:4566" # Use http://floci:4566 when executing inside Jenkins
+name_prefix    = "billing-prod"
+environment    = "prod"
+
+db_instance_class    = "db.t3.medium"
+db_allocated_storage = 50
+db_name              = "hotel_billing_prod"
+db_username          = "postgres"
+db_password          = "postgres_prod"
+
+backend_image = "billing-backend:prod"
+ecs_host_port = 8089

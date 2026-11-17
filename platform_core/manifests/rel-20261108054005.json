@@ -1,0 +1,62 @@
+{
+  "schema_version": "1.0.0",
+  "release_id": "rel-20261108054005",
+  "application": "hotel-billing",
+  "source": {
+    "repository": "https://github.com/ameerarsath/billing-system.git",
+    "commit_sha": "unknown"
+  },
+  "platform_version": "1.0.0",
+  "spec_version": "1.0.0",
+  "components": {
+    "backend": {
+      "image": "backend:rel-20261108054005",
+      "digest": "sha256:ec245ac15df6b835aa24c83d87f80f1afd646c5b9fdcab57641998716b79dc93"
+    },
+    "frontend": {
+      "artifact": "frontend-dist-rel-20261108054005.tar.gz",
+      "sha256": "317e7b7b92b39c438570d0a37a8122592991e9689330e222b9abc6e54cda6b9e"
+    }
+  },
+  "sbom": {
+    "format": "CycloneDX",
+    "reference": "sbom/hotel-billing-rel-20261108054005.json"
+  },
+  "provenance": {
+    "reference": "provenance/hotel-billing-rel-20261108054005.json"
+  },
+  "build": {
+    "timestamp": "2026-11-08T05:40:29.291271+00:00",
+    "builder_identity": "jenkins-runner@trusted-agent"
+  },
+  "raw_components": {
+    "backend": {
+      "component_name": "backend",
+      "artifact_type": "oci_container_image",
+      "image_tag": null,
+      "image_digest": null,
+      "artifact_path": "backend:rel-20261108054005",
+      "checksum_sha256": "sha256:ec245ac15df6b835aa24c83d87f80f1afd646c5b9fdcab57641998716b79dc93",
+      "sbom_path": null,
+      "build_metadata": {
+        "adapter": "build.dockerfile",
+        "image_tag": "backend:rel-20261108054005",
+        "image_id": "sha256:ec245ac15df6b835aa24c83d87f80f1afd646c5b9fdcab57641998716b79dc93"
+      }
+    },
+    "frontend": {
+      "component_name": "frontend",
+      "artifact_type": "static_tarball",
+      "image_tag": null,
+      "image_digest": null,
+      "artifact_path": "/workspace/billing-system/frontend-dist-rel-20261108054005.tar.gz",
+      "checksum_sha256": "317e7b7b92b39c438570d0a37a8122592991e9689330e222b9abc6e54cda6b9e",
+      "sbom_path": null,
+      "build_metadata": {
+        "adapter": "build.node-frontend",
+        "dist_dir": "/workspace/billing-system/frontend/dist",
+        "file_count": 4
+      }
+    }
+  }
+}

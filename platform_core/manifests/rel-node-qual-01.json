@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0.0",
+  "release_id": "rel-node-qual-01",
+  "application": "sample-node-service",
+  "source": {
+    "repository": "https://github.com/ameerarsath/billing-system.git",
+    "commit_sha": "3bf604266b4f233c3899d0e315a0538812542b04"
+  },
+  "platform_version": "1.2.0-phase4",
+  "spec_version": "1.0.0",
+  "components": {
+    "api": {
+      "image": "api:rel-node-qual-01",
+      "digest": "sha256:f8db3f498eb17a4e383ffa6d46aa37058c7d0007927ac65a91ab483037aef6ed"
+    }
+  },
+  "sbom": {
+    "format": "CycloneDX",
+    "reference": "sbom/sample-node-service-rel-node-qual-01.json"
+  },
+  "provenance": {
+    "reference": "provenance/sample-node-service-rel-node-qual-01.json"
+  },
+  "build": {
+    "timestamp": "2026-11-07T16:15:00.000000+00:00",
+    "builder_identity": "jenkins-runner@trusted-agent"
+  },
+  "raw_components": {
+    "api": {
+      "component_name": "api",
+      "artifact_type": "oci_container_image",
+      "image_tag": "api:rel-node-qual-01",
+      "image_digest": "sha256:f8db3f498eb17a4e383ffa6d46aa37058c7d0007927ac65a91ab483037aef6ed",
+      "artifact_path": "api:rel-node-qual-01",
+      "checksum_sha256": "sha256:f8db3f498eb17a4e383ffa6d46aa37058c7d0007927ac65a91ab483037aef6ed",
+      "build_metadata": {
+        "adapter": "build.dockerfile",
+        "runtime": "nodejs:22",
+        "lockfile": "package-lock.json"
+      }
+    }
+  }
+}

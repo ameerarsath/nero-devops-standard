@@ -1,0 +1,66 @@
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+        skipDefaultCheckout(true)
+    }
+
+    environment {
+        IMAGE_NAME = 'your-org/sample-python-app'
+        REGISTRY_HOST = 'ghcr.io'
+        CI = 'true'
+    }
+
+    parameters {
+        booleanParam(name: 'PUSH_IMAGE', defaultValue: false, description: 'Push image from main only. Configure the registry credential first.')
+    }
+
+    stages {
+        stage('Checkout') {
+            steps { checkout scm }
+        }
+        stage('Install dependencies') {
+            steps {
+                sh """
+                    python3 -m venv .venv
+                    . .venv/bin/activate
+                    python -m pip install --upgrade pip
+                    pip install -r requirements.txt
+                    pip install pytest
+                """
+            }
+        }
+        stage('Compile') {
+            steps { sh '.venv/bin/python -m compileall -q .' }
+        }
+        stage('Test') {
+            steps { sh '.venv/bin/python -m pytest -q' }
+        }
+        stage('Build container') {
+            when { expression { fileExists('Dockerfile') } }
+            steps { sh 'docker build --pull -t "$IMAGE_NAME:$BUILD_NUMBER" .' }
+        }
+        stage('Push container') {
+            when {
+                allOf {
+                    branch 'main'
+                    expression { return params.PUSH_IMAGE == true }
+                    expression { return fileExists('Dockerfile') }
+                }
+            }
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'container-registry', usernameVariable: 'REGISTRY_USER', passwordVariable: 'REGISTRY_PASSWORD')]) {
+                    sh 'set +x; set -eu; export DOCKER_CONFIG="$(mktemp -d)"; trap "rm -rf \"$DOCKER_CONFIG\"" EXIT; echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY_HOST" --username "$REGISTRY_USER" --password-stdin; docker tag "$IMAGE_NAME:$BUILD_NUMBER" "$REGISTRY_HOST/$IMAGE_NAME:$BUILD_NUMBER"; docker push "$REGISTRY_HOST/$IMAGE_NAME:$BUILD_NUMBER"; docker logout "$REGISTRY_HOST"'
+                }
+            }
+        }
+    }
+    post {
+        always { cleanWs() }
+        success { echo 'Python pipeline completed successfully.' }
+        failure { echo 'Python pipeline failed. Review stage logs.' }
+    }
+}
