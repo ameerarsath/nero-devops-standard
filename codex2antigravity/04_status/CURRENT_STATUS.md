@@ -4,6 +4,8 @@ Updated: 2026-11-17 (Asia/Calcutta); Gate 3 owner directive recorded as `DECISIO
 
 | Field | Current state |
 |---|---|
+| Repository root | D:\project\nero_devops_standard; standalone GitHub repository ameerarsath/nero-devops-standard on main |
+| Relocation | Former billing repository branch restored to 3bf6042; historical messages retain their original paths; active work uses this root |
 | Programme | Programme 1, deterministic DevOps automation (A0-A9); Programme 2 AI-enhanced B0-B6 follows sufficient maturity |
 | Programme phase map | `PLAN-PROGRAMME-1-PHASES-001` publishes the upfront A0–A9 subphase sequence; A5–A9 packages are provisional planning units and remain unauthorized |
 | Milestone | A4 Milestones 1-4 accepted; Milestone 5 implemented, remediation required |
